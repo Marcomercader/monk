@@ -1,0 +1,59 @@
+@import "tailwindcss";
+
+/* Class-based dark mode — applied via .dark on <html> */
+@custom-variant dark (&:where(.dark, .dark *));
+
+/* ── Colour tokens ───────────────────────────────────── */
+:root {
+  --monk-bg: #faf8f5;
+  --monk-surface: #f0ebe3;
+  --monk-text: #2d2926;
+  --monk-muted: #8a7f74;
+  --monk-accent: #7a8e7c;
+  --monk-warm: #c4a882;
+  --monk-border: #e0d8ce;
+}
+
+.dark {
+  --monk-bg: #181614;
+  --monk-surface: #242220;
+  --monk-text: #e8e0d5;
+  --monk-muted: #7a7068;
+  --monk-accent: #7a8e7c;
+  --monk-warm: #a89070;
+  --monk-border: #333028;
+}
+
+/* ── Tailwind theme ──────────────────────────────────── */
+@theme inline {
+  --color-monk-bg: var(--monk-bg);
+  --color-monk-surface: var(--monk-surface);
+  --color-monk-text: var(--monk-text);
+  --color-monk-muted: var(--monk-muted);
+  --color-monk-accent: var(--monk-accent);
+  --color-monk-warm: var(--monk-warm);
+  --color-monk-border: var(--monk-border);
+  --font-sans: var(--font-inter), system-ui, sans-serif;
+}
+
+/* ── Base ────────────────────────────────────────────── */
+body {
+  background-color: var(--monk-bg);
+  color: var(--monk-text);
+  font-family: var(--font-inter), system-ui, sans-serif;
+  transition:
+    background-color 0.3s ease,
+    color 0.3s ease;
+}
+
+/* Scrollbar styling */
+::-webkit-scrollbar {
+  width: 6px;
+}
+::-webkit-scrollbar-track {
+  background: var(--monk-bg);
+}
+::-webkit-scrollbar-thumb {
+  background: var(--monk-border);
+  border-radius: 3px;
+}
