@@ -6,7 +6,12 @@ export interface Habit {
 
 export interface Goal {
   id: string;
-  date: string; // YYYY-MM-DD
-  text: string;
-  done: boolean;
+  name: string;
+  createdAt: string;
+}
+
+export interface DayRating {
+  goalId: string;
+  date: string;
+  rating: number;
 }

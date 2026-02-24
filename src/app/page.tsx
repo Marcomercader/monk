@@ -4,7 +4,7 @@ import { useState } from "react";
 import Header from "@/components/Header";
 import HabitLogger from "@/components/HabitLogger";
 import MonkAvatar from "@/components/MonkAvatar";
-import GoalCalendar from "@/components/GoalCalendar";
+import GoalTracker from "@/components/GoalTracker";
 import QuoteOfDay from "@/components/QuoteOfDay";
 import OshoPanel from "@/components/OshoPanel";
 
@@ -23,13 +23,13 @@ export default function Home() {
         </section>
 
         {/* Centre — Monk Avatar */}
-        <section className="p-6 flex items-center justify-center border-b md:border-b-0 md:border-r border-monk-border bg-monk-surface/30 min-h-[320px]">
+        <section className="p-6 flex items-center justify-center border-b md:border-b-0 md:border-r border-monk-border bg-monk-surface/30 min-h-[400px]">
           <MonkAvatar />
         </section>
 
-        {/* Right — Goal Calendar */}
+        {/* Right — Goal Tracker */}
         <section className="p-6 overflow-y-auto">
-          <GoalCalendar />
+          <GoalTracker />
         </section>
       </main>
 

@@ -1,38 +1,98 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useRef, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 
-const OSHO_TEACHINGS = [
-  {
-    text: "Meditation is nothing but a device to make you aware of your real self — which is not created by you, which need not be created by you, which you already are.",
-    label: "On Meditation",
-  },
-  {
-    text: "The real question is not whether life exists after death. The real question is whether you are alive before death. Are you really alive? Or are you just dragging yourself from the cradle to the grave?",
-    label: "On Aliveness",
-  },
-  {
-    text: "Don't seek, don't search, don't ask, don't knock, don't demand — relax. If you relax, it comes. If you relax, it is there. If you relax, you start vibrating with it.",
-    label: "On Surrender",
-  },
-  {
-    text: "To be in the present moment is the greatest miracle. The whole existence is here — the trees are here, the birds are here, you are here. But to be totally here, that's what meditation is.",
-    label: "On Presence",
-  },
-  {
-    text: "Laughter is the most sacred thing in existence. God has given you the capacity to laugh — it is the most precious thing. A man who can laugh totally, wholeheartedly, has found the way.",
-    label: "On Joy",
-  },
+const OSHO_RESPONSES = [
+  "Silence is the language of existence. What you seek is already within you — you only need to stop looking outward.",
+  "Do not be in a hurry. The flower opens when it is ready, and the fragrance arises on its own. Trust the process of becoming.",
+  "The mind is a beautiful servant but a terrible master. When you watch your thoughts without identification, you begin to taste freedom.",
+  "Love is not a relationship — love is a state of being. It has nothing to do with anybody else. It is your inner quality.",
+  "The present moment is the only reality. The past is memory, the future is imagination. Only now is alive, only now can you be alive.",
+  "Meditation is simply the art of doing nothing. Not suppressing, not controlling — just being with what is.",
+  "When you dance, you forget the dancer. When you sing, the singer disappears. This is the way to the divine — through total absorption.",
 ];
+
+const GREETING = "Be still, and let us contemplate together. What stirs in your heart today?";
+
+interface Message {
+  id: string;
+  role: "osho" | "user";
+  text: string;
+}
 
 interface OshoPanelProps {
   isOpen: boolean;
   onClose: () => void;
 }
 
+function ThinkingDots() {
+  return (
+    <div className="flex items-center gap-1 px-4 py-3">
+      {[0, 1, 2].map((i) => (
+        <motion.div
+          key={i}
+          className="w-1.5 h-1.5 rounded-full"
+          style={{ background: "var(--monk-warm)" }}
+          animate={{ y: [0, -4, 0] }}
+          transition={{
+            repeat: Infinity,
+            duration: 0.8,
+            delay: i * 0.15,
+            ease: "easeInOut",
+          }}
+        />
+      ))}
+    </div>
+  );
+}
+
 export default function OshoPanel({ isOpen, onClose }: OshoPanelProps) {
-  const [activeTeaching, setActiveTeaching] = useState(0);
+  const [messages, setMessages] = useState<Message[]>([
+    { id: "greeting", role: "osho", text: GREETING },
+  ]);
+  const [input, setInput] = useState("");
+  const [thinking, setThinking] = useState(false);
+  const bottomRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    bottomRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, [messages, thinking]);
+
+  const handleSend = () => {
+    const trimmed = input.trim();
+    if (!trimmed || thinking) return;
+
+    const userMsg: Message = {
+      id: crypto.randomUUID(),
+      role: "user",
+      text: trimmed,
+    };
+
+    setMessages((prev) => [...prev, userMsg]);
+    setInput("");
+    setThinking(true);
+
+    // TODO: Replace with AI API call
+    setTimeout(() => {
+      const response =
+        OSHO_RESPONSES[Math.floor(Math.random() * OSHO_RESPONSES.length)];
+      const oshoMsg: Message = {
+        id: crypto.randomUUID(),
+        role: "osho",
+        text: response,
+      };
+      setMessages((prev) => [...prev, oshoMsg]);
+      setThinking(false);
+    }, 1500);
+  };
+
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === "Enter" && !e.shiftKey) {
+      e.preventDefault();
+      handleSend();
+    }
+  };
 
   return (
     <AnimatePresence>
@@ -57,14 +117,15 @@ export default function OshoPanel({ isOpen, onClose }: OshoPanelProps) {
             className="fixed right-0 top-0 h-full w-full max-w-sm z-50 bg-monk-surface border-l border-monk-border shadow-2xl flex flex-col overflow-hidden"
           >
             {/* Header */}
-            <div className="flex items-center justify-between px-6 py-5 border-b border-monk-border">
-              <div>
-                <h2 className="text-base font-semibold text-monk-text">
-                  Osho Teachings
-                </h2>
-                <p className="text-xs text-monk-muted mt-0.5">
-                  Reflections for the journey
-                </p>
+            <div className="flex items-center justify-between px-5 py-4 border-b border-monk-border flex-shrink-0">
+              <div className="flex items-center gap-3">
+                <div className="w-9 h-9 rounded-full bg-monk-warm/30 flex items-center justify-center text-lg flex-shrink-0">
+                  ☯
+                </div>
+                <div>
+                  <p className="text-sm font-semibold text-monk-text leading-tight">Osho</p>
+                  <p className="text-xs text-monk-muted">Mystic · Teacher · Guide</p>
+                </div>
               </div>
               <button
                 onClick={onClose}
@@ -75,77 +136,74 @@ export default function OshoPanel({ isOpen, onClose }: OshoPanelProps) {
               </button>
             </div>
 
-            {/* Bio blurb */}
-            <div className="px-6 py-5 border-b border-monk-border">
-              <div className="flex items-center gap-3 mb-3">
-                <div className="w-10 h-10 rounded-full bg-monk-warm/30 flex items-center justify-center text-xl">
-                  ☯
-                </div>
-                <div>
-                  <p className="text-sm font-medium text-monk-text">Osho</p>
-                  <p className="text-xs text-monk-muted">1931 – 1990</p>
-                </div>
-              </div>
-              <p className="text-xs text-monk-muted leading-relaxed">
-                Bhagwan Shree Rajneesh — known as Osho — was an Indian mystic
-                and spiritual teacher who synthesized Eastern spiritual practices
-                with Western psychology. His teachings emphasize awareness,
-                meditation, and the celebration of life as a path to inner
-                freedom.
-              </p>
-            </div>
-
-            {/* Teaching selector */}
-            <div className="px-6 py-4 border-b border-monk-border">
-              <p className="text-xs font-semibold text-monk-muted uppercase tracking-widest mb-3">
-                Teachings
-              </p>
-              <div className="flex flex-wrap gap-2">
-                {OSHO_TEACHINGS.map((t, i) => (
-                  <button
-                    key={i}
-                    onClick={() => setActiveTeaching(i)}
-                    className={`text-xs px-3 py-1.5 rounded-full border transition-all cursor-pointer ${
-                      activeTeaching === i
-                        ? "bg-monk-accent text-white border-monk-accent"
-                        : "border-monk-border text-monk-muted hover:border-monk-accent hover:text-monk-text"
-                    }`}
+            {/* Message thread */}
+            <div className="flex-1 overflow-y-auto px-4 py-4 space-y-3">
+              <AnimatePresence initial={false}>
+                {messages.map((msg) => (
+                  <motion.div
+                    key={msg.id}
+                    initial={{ opacity: 0, y: 8 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ duration: 0.25 }}
+                    className={`flex ${msg.role === "user" ? "justify-end" : "justify-start"}`}
                   >
-                    {t.label}
-                  </button>
+                    <div
+                      className={`max-w-[85%] px-3.5 py-2.5 rounded-2xl text-xs leading-relaxed ${
+                        msg.role === "osho"
+                          ? "text-monk-text italic"
+                          : "bg-monk-accent/20 text-monk-text border border-monk-accent/30"
+                      }`}
+                    >
+                      {msg.text}
+                    </div>
+                  </motion.div>
                 ))}
-              </div>
-            </div>
-
-            {/* Active teaching quote */}
-            <div className="flex-1 px-6 py-6 overflow-y-auto">
-              <AnimatePresence mode="wait">
-                <motion.blockquote
-                  key={activeTeaching}
-                  initial={{ opacity: 0, y: 10 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  exit={{ opacity: 0, y: -10 }}
-                  transition={{ duration: 0.3 }}
-                  className="relative"
-                >
-                  <span className="absolute -left-2 -top-3 text-5xl text-monk-warm opacity-30 font-serif leading-none">
-                    &ldquo;
-                  </span>
-                  <p className="text-sm text-monk-text leading-relaxed pl-4 italic">
-                    {OSHO_TEACHINGS[activeTeaching].text}
-                  </p>
-                  <footer className="mt-4 pl-4 text-xs text-monk-warm">
-                    — Osho, {OSHO_TEACHINGS[activeTeaching].label}
-                  </footer>
-                </motion.blockquote>
               </AnimatePresence>
+
+              {/* Thinking indicator */}
+              <AnimatePresence>
+                {thinking && (
+                  <motion.div
+                    initial={{ opacity: 0, y: 8 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0 }}
+                    className="flex justify-start"
+                  >
+                    <div className="rounded-2xl bg-monk-bg/50">
+                      <ThinkingDots />
+                    </div>
+                  </motion.div>
+                )}
+              </AnimatePresence>
+
+              <div ref={bottomRef} />
             </div>
 
-            {/* Footer */}
-            <div className="px-6 py-4 border-t border-monk-border">
-              <p className="text-xs text-monk-muted text-center opacity-60">
-                &ldquo;Be silent. Know thyself. Be blissful.&rdquo;
-              </p>
+            {/* Input bar */}
+            <div className="px-4 py-3 border-t border-monk-border flex-shrink-0">
+              <div className="flex items-center gap-2">
+                <input
+                  type="text"
+                  value={input}
+                  onChange={(e) => setInput(e.target.value)}
+                  onKeyDown={handleKeyDown}
+                  placeholder="Ask Osho something…"
+                  disabled={thinking}
+                  maxLength={300}
+                  className="flex-1 bg-monk-bg text-monk-text placeholder-monk-muted text-xs px-3.5 py-2.5 rounded-full border border-monk-border focus:outline-none focus:border-monk-accent transition-colors disabled:opacity-50"
+                />
+                <motion.button
+                  whileTap={{ scale: 0.9 }}
+                  onClick={handleSend}
+                  disabled={!input.trim() || thinking}
+                  className="w-9 h-9 flex items-center justify-center bg-monk-accent text-white rounded-full disabled:opacity-40 transition-opacity cursor-pointer flex-shrink-0"
+                  aria-label="Send"
+                >
+                  <svg viewBox="0 0 16 16" width="14" height="14" fill="currentColor">
+                    <path d="M2 8l12-6-6 12V9L2 8z" />
+                  </svg>
+                </motion.button>
+              </div>
             </div>
           </motion.aside>
         </>
