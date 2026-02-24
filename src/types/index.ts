@@ -15,3 +15,10 @@ export interface DayRating {
   date: string;
   rating: number;
 }
+
+export interface CalendarGoal {
+  id: string;
+  date: string;
+  text: string;
+  done: boolean;
+}
