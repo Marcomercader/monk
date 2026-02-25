@@ -22,3 +22,8 @@ export interface CalendarGoal {
   text: string;
   done: boolean;
 }
+
+export interface DayNote {
+  date: string;
+  note: string;
+}

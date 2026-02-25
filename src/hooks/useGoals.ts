@@ -1,11 +1,12 @@
 "use client";
 
 import { useLocalStorage } from "./useLocalStorage";
-import { Goal, DayRating } from "@/types";
+import { Goal, DayRating, DayNote } from "@/types";
 
 export function useGoals() {
   const [goals, setGoals] = useLocalStorage<Goal[]>("monk_goals_v2", []);
   const [ratings, setRatings] = useLocalStorage<DayRating[]>("monk_ratings", []);
+  const [notes, setNotes] = useLocalStorage<DayNote[]>("monk_notes", []);
 
   const addGoal = (name: string) => {
     const trimmed = name.trim();
@@ -25,10 +26,7 @@ export function useGoals() {
 
   const setRating = (goalId: string, date: string, rating: number) => {
     setRatings((prev) => {
-      const existing = prev.find(
-        (r) => r.goalId === goalId && r.date === date
-      );
-      // Clicking same star again clears rating
+      const existing = prev.find((r) => r.goalId === goalId && r.date === date);
       if (existing && existing.rating === rating) {
         return prev.filter((r) => !(r.goalId === goalId && r.date === date));
       }
@@ -46,17 +44,44 @@ export function useGoals() {
     return found ? found.rating : null;
   };
 
-  const getRatingsForGoal = (goalId: string): DayRating[] => {
-    return ratings.filter((r) => r.goalId === goalId);
+  const getRatingsForGoal = (goalId: string): DayRating[] =>
+    ratings.filter((r) => r.goalId === goalId);
+
+  /** Long-term progress: average daily rating mapped to 0–100% */
+  const getLongTermProgress = (goalId: string): number => {
+    const goalRatings = ratings.filter((r) => r.goalId === goalId);
+    if (goalRatings.length === 0) return 0;
+    const avg =
+      goalRatings.reduce((sum, r) => sum + r.rating, 0) / goalRatings.length;
+    return Math.round((avg / 5) * 100);
   };
+
+  const setNote = (date: string, note: string) => {
+    setNotes((prev) => {
+      const existing = prev.find((n) => n.date === date);
+      if (existing) {
+        if (!note.trim()) return prev.filter((n) => n.date !== date);
+        return prev.map((n) => (n.date === date ? { ...n, note } : n));
+      }
+      if (!note.trim()) return prev;
+      return [...prev, { date, note }];
+    });
+  };
+
+  const getNoteForDate = (date: string): string =>
+    notes.find((n) => n.date === date)?.note ?? "";
 
   return {
     goals,
     ratings,
+    notes,
     addGoal,
     removeGoal,
     setRating,
     getRatingForDate,
     getRatingsForGoal,
+    getLongTermProgress,
+    setNote,
+    getNoteForDate,
   };
 }

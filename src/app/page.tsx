@@ -1,103 +1,93 @@
 "use client";
 
 import { useState } from "react";
-import Link from "next/link";
 import { motion } from "framer-motion";
+import LandscapeBackground from "@/components/LandscapeBackground";
 import MonkAvatar from "@/components/MonkAvatar";
-import QuoteOfDay from "@/components/QuoteOfDay";
+import GoalPanel from "@/components/GoalPanel";
 import OshoPanel from "@/components/OshoPanel";
-import GoalCalendar from "@/components/GoalCalendar";
 import ThemeToggle from "@/components/ThemeToggle";
-
-interface NavCardProps {
-  icon: string;
-  label: string;
-  sub?: string;
-  onClick?: () => void;
-  href?: string;
-}
-
-function NavCard({ icon, label, sub, onClick, href }: NavCardProps) {
-  const inner = (
-    <motion.div
-      whileHover={{ scale: 1.05, y: -3 }}
-      whileTap={{ scale: 0.96 }}
-      className="group w-28 py-5 flex flex-col items-center gap-2 rounded-2xl border border-monk-border bg-monk-surface/80 backdrop-blur-sm hover:border-monk-accent hover:bg-monk-surface transition-all cursor-pointer shadow-sm"
-    >
-      <span className="text-2xl group-hover:scale-110 transition-transform">{icon}</span>
-      <div className="flex flex-col items-center gap-0.5">
-        <span className="text-xs font-medium tracking-wide text-monk-text group-hover:text-monk-accent transition-colors">
-          {label}
-        </span>
-        {sub && (
-          <span className="text-[10px] text-monk-muted opacity-60">{sub}</span>
-        )}
-      </div>
-    </motion.div>
-  );
-
-  if (href) {
-    return <Link href={href}>{inner}</Link>;
-  }
-
-  return (
-    <button onClick={onClick} className="focus:outline-none">
-      {inner}
-    </button>
-  );
-}
+import { getDailyQuote } from "@/data/quotes";
 
 export default function Home() {
   const [oshoOpen, setOshoOpen] = useState(false);
-  const [calendarOpen, setCalendarOpen] = useState(false);
+  const quote = getDailyQuote();
 
   return (
-    <div className="min-h-screen flex flex-col bg-monk-bg text-monk-text">
-      {/* Minimal header */}
-      <header className="flex items-center justify-between px-6 py-4 z-20 relative">
-        <h1 className="text-xl font-light tracking-[0.25em] text-monk-text lowercase opacity-80">
+    <div className="h-screen w-screen overflow-hidden relative bg-[#0d1e36]">
+      {/* ── MOUNTAIN LANDSCAPE ── */}
+      <LandscapeBackground />
+
+      {/* ── TOP BAR ── */}
+      <div className="absolute top-0 left-0 right-0 flex items-center justify-between px-6 py-4 z-20">
+        {/* Brand */}
+        <span className="text-lg font-light tracking-[0.3em] text-white/60 lowercase select-none">
           monk
-        </h1>
-        <ThemeToggle />
-      </header>
+        </span>
 
-      {/* Hero layout */}
-      <main className="flex-1 flex flex-col items-center justify-center px-4 pb-4">
-        {/* Desktop: side buttons flanking avatar */}
-        <div className="flex items-center justify-center gap-6 lg:gap-10 w-full max-w-3xl">
-          {/* Left nav */}
-          <div className="hidden sm:flex flex-col gap-4">
-            <NavCard icon="📅" label="Calendar" sub="intentions" onClick={() => setCalendarOpen(true)} />
-            <NavCard icon="☯" label="Osho" sub="chat" onClick={() => setOshoOpen(true)} />
-          </div>
-
-          {/* Center: monk avatar */}
-          <div className="flex-shrink-0">
-            <MonkAvatar />
-          </div>
-
-          {/* Right nav */}
-          <div className="hidden sm:flex flex-col gap-4">
-            <NavCard icon="🎯" label="Goals" sub="manage" href="/goals" />
-            <NavCard icon="⭐" label="Rate" sub="today" href="/rate" />
-          </div>
+        {/* Right: theme + Osho */}
+        <div className="flex items-center gap-3">
+          <ThemeToggle />
+          <motion.button
+            whileHover={{ scale: 1.04, backgroundColor: "rgba(255,255,255,0.18)" }}
+            whileTap={{ scale: 0.95 }}
+            onClick={() => setOshoOpen(true)}
+            className="flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-white/10 border border-white/15 text-white/70 hover:text-white text-sm transition-all cursor-pointer backdrop-blur-sm"
+          >
+            <span>☯</span>
+            <span className="hidden sm:inline font-light tracking-wide">Osho</span>
+          </motion.button>
         </div>
+      </div>
 
-        {/* Mobile: 2×2 grid below avatar */}
-        <div className="sm:hidden mt-6 grid grid-cols-2 gap-3 w-full max-w-xs">
-          <NavCard icon="📅" label="Calendar" onClick={() => setCalendarOpen(true)} />
-          <NavCard icon="☯" label="Osho" onClick={() => setOshoOpen(true)} />
-          <NavCard icon="🎯" label="Goals" href="/goals" />
-          <NavCard icon="⭐" label="Rate" href="/rate" />
+      {/* ── LEFT FLOATING PANEL ── */}
+      <motion.div
+        initial={{ opacity: 0, x: -20 }}
+        animate={{ opacity: 1, x: 0 }}
+        transition={{ duration: 0.7, delay: 0.3 }}
+        className="absolute left-5 top-1/2 -translate-y-1/2 z-10 hidden md:block"
+      >
+        <GoalPanel />
+      </motion.div>
+
+      {/* ── CENTER AVATAR ── */}
+      <div className="absolute inset-0 flex items-center justify-center z-10 pointer-events-none">
+        <MonkAvatar />
+      </div>
+
+      {/* ── BOTTOM QUOTE ── */}
+      <motion.div
+        initial={{ opacity: 0, y: 16 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 1, delay: 0.6 }}
+        className="absolute bottom-0 left-0 right-0 z-10 px-8 pb-8 text-center"
+      >
+        {/* gradient fade so quote sits legibly over the dark foreground */}
+        <div className="absolute inset-0 bg-gradient-to-t from-black/40 to-transparent pointer-events-none rounded-none" />
+        <div className="relative">
+          <p className="text-xl sm:text-2xl md:text-3xl font-light italic text-white/80 leading-relaxed max-w-3xl mx-auto drop-shadow-lg">
+            &ldquo;{quote.text}&rdquo;
+          </p>
+          <p className="mt-3 text-sm text-white/45 tracking-widest font-light">
+            — {quote.author}
+          </p>
         </div>
-      </main>
+      </motion.div>
 
-      {/* Footer quote */}
-      <QuoteOfDay />
+      {/* ── MOBILE: bottom Goals button ── */}
+      <div className="md:hidden absolute bottom-32 left-4 z-10">
+        <motion.a
+          href="/goals"
+          whileHover={{ scale: 1.04 }}
+          whileTap={{ scale: 0.96 }}
+          className="flex items-center gap-2 px-4 py-2.5 rounded-full bg-white/10 border border-white/15 text-white/80 text-sm backdrop-blur-sm"
+        >
+          🎯 Goals
+        </motion.a>
+      </div>
 
-      {/* Drawers */}
+      {/* ── OSHO DRAWER ── */}
       <OshoPanel isOpen={oshoOpen} onClose={() => setOshoOpen(false)} />
-      <GoalCalendar isOpen={calendarOpen} onClose={() => setCalendarOpen(false)} />
     </div>
   );
 }

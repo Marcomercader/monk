@@ -1,0 +1,7 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(git -C /Users/marcoopertti/monk add -A && git -C /Users/marcoopertti/monk commit -m \"$\\(cat <<'EOF'\nfeat: full-page landscape hero, flat avatar, goal panel, enriched goals page\n\n- LandscapeBackground: full-page mountain SVG \\(always daytime\\) with\n  layered far/mid/near mountain silhouettes, snow caps, pine trees,\n  mist layer, sun glow, atmospheric vignette\n- MonkAvatar: clean flat golden silhouette \\(32vh, swappable later\\) —\n  gradient saffron robe, halo ring, dhyana mudra orb, minimal face,\n  floating animation with warm aura glow\n- page.tsx: h-screen hero layout — everything absolutely positioned over\n  landscape; left GoalPanel, centered avatar, large bottom quote overlay,\n  glass Osho button top-right; mobile Goals pill at bottom\n- GoalPanel: frosted glass card \\(left side\\) with Goals link → animated\n  progress bars \\(long-term %\\) → mini calendar \\(green dots on rated days\\)\n  → compact 14-day bezier trend chart\n- goals/page.tsx: full redesign — date navigation \\(past only\\), 1-5 dot\n  ratings per goal with overall % bar, notes textarea + save, goal\n  management \\(add/remove\\) all on one page\n- useGoals: added setNote/getNoteForDate \\(monk_notes\\) and\n  getLongTermProgress \\(avg rating → 0–100%\\)\n- types: added DayNote interface\n\nCo-Authored-By: Claude Sonnet 4.6 <noreply@anthropic.com>\nEOF\n\\)\" && git -C /Users/marcoopertti/monk push)"
+    ]
+  }
+}
