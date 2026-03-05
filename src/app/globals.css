@@ -5,23 +5,23 @@
 
 /* ── Colour tokens ───────────────────────────────────── */
 :root {
-  --monk-bg: #faf8f5;
-  --monk-surface: #f0ebe3;
+  --monk-bg: #fdf0e0;
+  --monk-surface: #e8d5b0;
   --monk-text: #2d2926;
   --monk-muted: #8a7f74;
   --monk-accent: #7a8e7c;
   --monk-warm: #c4a882;
-  --monk-border: #e0d8ce;
+  --monk-border: #c8b088;
 }
 
 .dark {
-  --monk-bg: #181614;
-  --monk-surface: #242220;
-  --monk-text: #e8e0d5;
-  --monk-muted: #7a7068;
+  --monk-bg: #2c2318;
+  --monk-surface: #362c1e;
+  --monk-text: #f0e6d8;
+  --monk-muted: #9a8878;
   --monk-accent: #7a8e7c;
-  --monk-warm: #a89070;
-  --monk-border: #333028;
+  --monk-warm: #c4a882;
+  --monk-border: #4a3c2a;
 }
 
 /* ── Tailwind theme ──────────────────────────────────── */

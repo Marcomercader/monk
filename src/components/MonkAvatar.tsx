@@ -4,7 +4,7 @@ import { motion } from "framer-motion";
 
 export default function MonkAvatar() {
   return (
-    <div className="flex flex-col items-center select-none" style={{ height: "52vh", aspectRatio: "3/4" }}>
+    <div className="flex flex-col items-center select-none" style={{ height: "72vh", aspectRatio: "3/4" }}>
       <div className="relative w-full h-full">
         {/* Outer glow — warm golden halo behind the figure */}
         <motion.div

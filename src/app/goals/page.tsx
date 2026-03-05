@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import Link from "next/link";
 import { motion, AnimatePresence } from "framer-motion";
 import { useGoals } from "@/hooks/useGoals";
@@ -29,9 +29,10 @@ interface DotRatingProps {
   rating: number | null;
   onRate: (n: number) => void;
   color: string;
+  size?: number;
 }
 
-function DotRating({ rating, onRate, color }: DotRatingProps) {
+function DotRating({ rating, onRate, color, size = 20 }: DotRatingProps) {
   return (
     <div className="flex items-center gap-2">
       {[1, 2, 3, 4, 5].map((n) => (
@@ -43,7 +44,7 @@ function DotRating({ rating, onRate, color }: DotRatingProps) {
           aria-label={`Rate ${n}`}
           className="cursor-pointer"
         >
-          <svg width="20" height="20" viewBox="0 0 20 20">
+          <svg width={size} height={size} viewBox="0 0 20 20">
             <circle
               cx="10" cy="10" r="7"
               fill={rating !== null && rating >= n ? color : "none"}
@@ -62,10 +63,10 @@ function DotRating({ rating, onRate, color }: DotRatingProps) {
 
 export default function GoalsPage() {
   const {
-    goals, ratings,
-    addGoal, removeGoal,
-    setRating, getRatingForDate,
-    getLongTermProgress,
+    goals, addGoal, removeGoal, renameGoal,
+    addHabitToGoal, removeHabitFromGoal,
+    setRating, getRatingForDate, getLongTermProgress,
+    setHabitRating, getHabitRatingForDate, getHabitRatingsForDate,
     setNote, getNoteForDate,
   } = useGoals();
 
@@ -75,22 +76,30 @@ export default function GoalsPage() {
   const [noteSaved, setNoteSaved] = useState(false);
   const [newGoalName, setNewGoalName] = useState("");
 
-  // Sync note textarea when date changes
+  const [expandedHabits, setExpandedHabits] = useState<Set<string>>(new Set());
+  const [editingGoalId, setEditingGoalId] = useState<string | null>(null);
+  const [editingName, setEditingName] = useState("");
+  const [newHabitInputs, setNewHabitInputs] = useState<Record<string, string>>({});
+  const [expandedManage, setExpandedManage] = useState<Set<string>>(new Set());
+
+  const editInputRef = useRef<HTMLInputElement>(null);
+
   useEffect(() => {
     setNoteText(getNoteForDate(selectedDate));
     setNoteSaved(false);
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedDate]);
 
+  useEffect(() => {
+    if (editingGoalId) editInputRef.current?.focus();
+  }, [editingGoalId]);
+
   const isToday = selectedDate === todayKey;
 
   const shiftDate = (delta: number) => {
     const d = parseDate(selectedDate);
     d.setDate(d.getDate() + delta);
-    // Don't go into the future
-    if (formatDateKey(d) <= todayKey) {
-      setSelectedDate(formatDateKey(d));
-    }
+    if (formatDateKey(d) <= todayKey) setSelectedDate(formatDateKey(d));
   };
 
   const handleSaveNote = () => {
@@ -104,6 +113,40 @@ export default function GoalsPage() {
     if (newGoalName.trim()) {
       addGoal(newGoalName);
       setNewGoalName("");
+    }
+  };
+
+  const toggleHabitExpand = (goalId: string) => {
+    setExpandedHabits((prev) => {
+      const next = new Set(prev);
+      next.has(goalId) ? next.delete(goalId) : next.add(goalId);
+      return next;
+    });
+  };
+
+  const toggleManageExpand = (goalId: string) => {
+    setExpandedManage((prev) => {
+      const next = new Set(prev);
+      next.has(goalId) ? next.delete(goalId) : next.add(goalId);
+      return next;
+    });
+  };
+
+  const startEditGoal = (goalId: string, currentName: string) => {
+    setEditingGoalId(goalId);
+    setEditingName(currentName);
+  };
+
+  const confirmEditGoal = () => {
+    if (editingGoalId) renameGoal(editingGoalId, editingName);
+    setEditingGoalId(null);
+  };
+
+  const handleAddHabit = (goalId: string) => {
+    const name = newHabitInputs[goalId] ?? "";
+    if (name.trim()) {
+      addHabitToGoal(goalId, name);
+      setNewHabitInputs((prev) => ({ ...prev, [goalId]: "" }));
     }
   };
 
@@ -177,35 +220,99 @@ export default function GoalsPage() {
                 const color = GOAL_COLORS[gi % GOAL_COLORS.length];
                 const todayRating = getRatingForDate(goal.id, selectedDate);
                 const longPct = getLongTermProgress(goal.id);
+                const habits = goal.habits ?? [];
+                const isExpanded = expandedHabits.has(goal.id);
+                const dayHabitRatings = getHabitRatingsForDate(goal.id, selectedDate);
+
                 return (
                   <motion.div
                     key={goal.id}
                     initial={{ opacity: 0, y: 6 }}
                     animate={{ opacity: 1, y: 0 }}
                     transition={{ delay: gi * 0.05 }}
-                    className="flex flex-col gap-2 px-4 py-3.5 rounded-xl border border-monk-border bg-monk-surface"
+                    className="rounded-xl border border-monk-border bg-monk-surface overflow-hidden"
                   >
-                    <div className="flex items-center justify-between gap-2">
-                      <div className="flex items-center gap-2 min-w-0">
-                        <span className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ background: color }} />
-                        <span className="text-sm text-monk-text truncate">{goal.name}</span>
+                    <div className="flex flex-col gap-2 px-4 py-3.5">
+                      <div className="flex items-center justify-between gap-2">
+                        <div className="flex items-center gap-2 min-w-0">
+                          <span className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ background: color }} />
+                          <span className="text-sm text-monk-text truncate">{goal.name}</span>
+                        </div>
+                        <span className="text-xs text-monk-muted opacity-60 flex-shrink-0">
+                          {longPct}% overall
+                        </span>
                       </div>
-                      <span className="text-xs text-monk-muted opacity-60 flex-shrink-0">
-                        {longPct}% overall
-                      </span>
-                    </div>
-                    <DotRating
-                      rating={todayRating}
-                      onRate={(r) => setRating(goal.id, selectedDate, r)}
-                      color={color}
-                    />
-                    {/* Mini progress bar */}
-                    <div className="h-1 bg-monk-border rounded-full overflow-hidden">
-                      <div
-                        className="h-full rounded-full transition-all duration-700"
-                        style={{ width: `${longPct}%`, background: color }}
+
+                      {/* Overarching rating */}
+                      <DotRating
+                        rating={todayRating}
+                        onRate={(r) => setRating(goal.id, selectedDate, r)}
+                        color={color}
                       />
+
+                      {/* Progress bar */}
+                      <div className="h-1 bg-monk-border rounded-full overflow-hidden">
+                        <div
+                          className="h-full rounded-full transition-all duration-700"
+                          style={{ width: `${longPct}%`, background: color }}
+                        />
+                      </div>
+
+                      {/* Habit toggle */}
+                      {habits.length > 0 && (
+                        <button
+                          onClick={() => toggleHabitExpand(goal.id)}
+                          className="flex items-center gap-1.5 text-[11px] text-monk-muted hover:text-monk-text transition-colors cursor-pointer mt-0.5 w-fit"
+                        >
+                          <motion.span
+                            animate={{ rotate: isExpanded ? 90 : 0 }}
+                            transition={{ duration: 0.2 }}
+                            className="inline-block"
+                          >
+                            ›
+                          </motion.span>
+                          Rate by habit
+                          {dayHabitRatings.length > 0 && (
+                            <span className="text-monk-accent ml-1">
+                              ({dayHabitRatings.length}/{habits.length} rated)
+                            </span>
+                          )}
+                        </button>
+                      )}
                     </div>
+
+                    {/* Habit sub-ratings */}
+                    <AnimatePresence initial={false}>
+                      {isExpanded && habits.length > 0 && (
+                        <motion.div
+                          initial={{ height: 0, opacity: 0 }}
+                          animate={{ height: "auto", opacity: 1 }}
+                          exit={{ height: 0, opacity: 0 }}
+                          transition={{ duration: 0.2 }}
+                          className="border-t border-monk-border bg-monk-bg/40 px-4 py-3 flex flex-col gap-3"
+                        >
+                          {habits.map((habit) => {
+                            const hr = getHabitRatingForDate(goal.id, habit.id, selectedDate);
+                            return (
+                              <div key={habit.id} className="flex flex-col gap-1.5">
+                                <span className="text-xs text-monk-muted">{habit.name}</span>
+                                <DotRating
+                                  rating={hr}
+                                  onRate={(r) => setHabitRating(goal.id, habit.id, selectedDate, r)}
+                                  color={color}
+                                  size={16}
+                                />
+                              </div>
+                            );
+                          })}
+                          {dayHabitRatings.length > 0 && (
+                            <p className="text-[10px] text-monk-muted opacity-70 italic">
+                              Habit average auto-updates the overall rating above
+                            </p>
+                          )}
+                        </motion.div>
+                      )}
+                    </AnimatePresence>
                   </motion.div>
                 );
               })}
@@ -278,6 +385,10 @@ export default function GoalsPage() {
             <AnimatePresence>
               {goals.map((goal, gi) => {
                 const color = GOAL_COLORS[gi % GOAL_COLORS.length];
+                const habits = goal.habits ?? [];
+                const isEditingThis = editingGoalId === goal.id;
+                const manageExpanded = expandedManage.has(goal.id);
+
                 return (
                   <motion.div
                     key={goal.id}
@@ -285,17 +396,107 @@ export default function GoalsPage() {
                     animate={{ opacity: 1, x: 0 }}
                     exit={{ opacity: 0, x: -10, height: 0 }}
                     transition={{ duration: 0.2 }}
-                    className="group flex items-center gap-3 px-4 py-2.5 rounded-xl border border-monk-border bg-monk-surface hover:border-monk-accent/50 transition-all"
+                    className="rounded-xl border border-monk-border bg-monk-surface overflow-hidden"
                   >
-                    <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ background: color }} />
-                    <span className="flex-1 text-sm text-monk-text">{goal.name}</span>
-                    <motion.button
-                      whileTap={{ scale: 0.85 }}
-                      onClick={() => removeGoal(goal.id)}
-                      className="opacity-0 group-hover:opacity-100 text-monk-muted hover:text-red-400 text-lg leading-none transition-all cursor-pointer"
-                    >
-                      ×
-                    </motion.button>
+                    {/* Goal row */}
+                    <div className="group flex items-center gap-3 px-4 py-2.5">
+                      <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ background: color }} />
+
+                      {isEditingThis ? (
+                        <form
+                          className="flex-1 flex gap-2"
+                          onSubmit={(e) => { e.preventDefault(); confirmEditGoal(); }}
+                        >
+                          <input
+                            ref={editInputRef}
+                            value={editingName}
+                            onChange={(e) => setEditingName(e.target.value)}
+                            maxLength={60}
+                            className="flex-1 bg-monk-bg text-monk-text text-sm px-2 py-0.5 rounded-lg border border-monk-accent focus:outline-none"
+                          />
+                          <button type="submit" className="text-monk-accent text-sm cursor-pointer">✓</button>
+                          <button type="button" onClick={() => setEditingGoalId(null)} className="text-monk-muted text-sm cursor-pointer">✕</button>
+                        </form>
+                      ) : (
+                        <span className="flex-1 text-sm text-monk-text">{goal.name}</span>
+                      )}
+
+                      {!isEditingThis && (
+                        <div className="flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                          <button
+                            onClick={() => toggleManageExpand(goal.id)}
+                            className="text-[10px] text-monk-muted hover:text-monk-text transition-colors cursor-pointer border border-monk-border rounded px-1.5 py-0.5"
+                          >
+                            habits {habits.length > 0 ? `(${habits.length})` : "+"}
+                          </button>
+                          <button
+                            onClick={() => startEditGoal(goal.id, goal.name)}
+                            className="text-monk-muted hover:text-monk-text transition-colors cursor-pointer text-sm"
+                            aria-label="Edit goal"
+                          >
+                            ✎
+                          </button>
+                          <button
+                            onClick={() => removeGoal(goal.id)}
+                            className="text-monk-muted hover:text-red-400 text-lg leading-none transition-colors cursor-pointer"
+                          >
+                            ×
+                          </button>
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Habit management */}
+                    <AnimatePresence initial={false}>
+                      {manageExpanded && (
+                        <motion.div
+                          initial={{ height: 0, opacity: 0 }}
+                          animate={{ height: "auto", opacity: 1 }}
+                          exit={{ height: 0, opacity: 0 }}
+                          transition={{ duration: 0.2 }}
+                          className="border-t border-monk-border bg-monk-bg/40 px-4 py-3 flex flex-col gap-2"
+                        >
+                          {habits.map((habit) => (
+                            <div key={habit.id} className="group/habit flex items-center gap-2">
+                              <span className="w-1 h-1 rounded-full bg-monk-muted flex-shrink-0" />
+                              <span className="flex-1 text-xs text-monk-text">{habit.name}</span>
+                              <button
+                                onClick={() => removeHabitFromGoal(goal.id, habit.id)}
+                                className="opacity-0 group-hover/habit:opacity-100 text-monk-muted hover:text-red-400 text-base leading-none transition-all cursor-pointer"
+                              >
+                                ×
+                              </button>
+                            </div>
+                          ))}
+                          {habits.length === 0 && (
+                            <p className="text-[11px] text-monk-muted italic">No habits yet</p>
+                          )}
+                          <form
+                            className="flex gap-2 mt-1"
+                            onSubmit={(e) => { e.preventDefault(); handleAddHabit(goal.id); }}
+                          >
+                            <input
+                              type="text"
+                              value={newHabitInputs[goal.id] ?? ""}
+                              onChange={(e) =>
+                                setNewHabitInputs((prev) => ({ ...prev, [goal.id]: e.target.value }))
+                              }
+                              placeholder="Add a habit…"
+                              maxLength={60}
+                              className="flex-1 bg-monk-surface text-monk-text placeholder-monk-muted text-xs px-3 py-1.5 rounded-lg border border-monk-border focus:outline-none focus:border-monk-accent transition-colors"
+                            />
+                            <motion.button
+                              whileTap={{ scale: 0.92 }}
+                              type="submit"
+                              disabled={!(newHabitInputs[goal.id] ?? "").trim()}
+                              className="px-3 py-1.5 bg-monk-accent text-white rounded-lg text-xs disabled:opacity-40 cursor-pointer"
+                            >
+                              +
+                            </motion.button>
+                          </form>
+                        </motion.div>
+                      )}
+                    </AnimatePresence>
                   </motion.div>
                 );
               })}

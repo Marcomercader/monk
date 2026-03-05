@@ -4,14 +4,27 @@ export interface Habit {
   createdAt: string;
 }
 
+export interface GoalHabit {
+  id: string;
+  name: string;
+}
+
 export interface Goal {
   id: string;
   name: string;
   createdAt: string;
+  habits: GoalHabit[];
 }
 
 export interface DayRating {
   goalId: string;
+  date: string;
+  rating: number;
+}
+
+export interface HabitRating {
+  goalId: string;
+  habitId: string;
   date: string;
   rating: number;
 }

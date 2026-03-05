@@ -1,12 +1,15 @@
 "use client";
 
 import { useLocalStorage } from "./useLocalStorage";
-import { Goal, DayRating, DayNote } from "@/types";
+import { Goal, GoalHabit, DayRating, HabitRating, DayNote } from "@/types";
 
 export function useGoals() {
   const [goals, setGoals] = useLocalStorage<Goal[]>("monk_goals_v2", []);
   const [ratings, setRatings] = useLocalStorage<DayRating[]>("monk_ratings", []);
+  const [habitRatings, setHabitRatings] = useLocalStorage<HabitRating[]>("monk_habit_ratings", []);
   const [notes, setNotes] = useLocalStorage<DayNote[]>("monk_notes", []);
+
+  // ── Goal CRUD ──────────────────────────────────────────────
 
   const addGoal = (name: string) => {
     const trimmed = name.trim();
@@ -15,6 +18,7 @@ export function useGoals() {
       id: crypto.randomUUID(),
       name: trimmed,
       createdAt: new Date().toISOString(),
+      habits: [],
     };
     setGoals((prev) => [...prev, goal]);
   };
@@ -22,7 +26,46 @@ export function useGoals() {
   const removeGoal = (id: string) => {
     setGoals((prev) => prev.filter((g) => g.id !== id));
     setRatings((prev) => prev.filter((r) => r.goalId !== id));
+    setHabitRatings((prev) => prev.filter((r) => r.goalId !== id));
   };
+
+  const renameGoal = (goalId: string, name: string) => {
+    const trimmed = name.trim();
+    if (!trimmed) return;
+    setGoals((prev) =>
+      prev.map((g) => (g.id === goalId ? { ...g, name: trimmed } : g))
+    );
+  };
+
+  // ── Habit CRUD (per goal) ──────────────────────────────────
+
+  const addHabitToGoal = (goalId: string, habitName: string) => {
+    const trimmed = habitName.trim();
+    if (!trimmed) return;
+    const habit: GoalHabit = { id: crypto.randomUUID(), name: trimmed };
+    setGoals((prev) =>
+      prev.map((g) =>
+        g.id === goalId
+          ? { ...g, habits: [...(g.habits ?? []), habit] }
+          : g
+      )
+    );
+  };
+
+  const removeHabitFromGoal = (goalId: string, habitId: string) => {
+    setGoals((prev) =>
+      prev.map((g) =>
+        g.id === goalId
+          ? { ...g, habits: (g.habits ?? []).filter((h) => h.id !== habitId) }
+          : g
+      )
+    );
+    setHabitRatings((prev) =>
+      prev.filter((r) => !(r.goalId === goalId && r.habitId === habitId))
+    );
+  };
+
+  // ── Goal ratings ───────────────────────────────────────────
 
   const setRating = (goalId: string, date: string, rating: number) => {
     setRatings((prev) => {
@@ -47,7 +90,7 @@ export function useGoals() {
   const getRatingsForGoal = (goalId: string): DayRating[] =>
     ratings.filter((r) => r.goalId === goalId);
 
-  /** Long-term progress: average daily rating mapped to 0–100% */
+  /** Average of all DayRatings mapped to 0–100 */
   const getLongTermProgress = (goalId: string): number => {
     const goalRatings = ratings.filter((r) => r.goalId === goalId);
     if (goalRatings.length === 0) return 0;
@@ -55,6 +98,76 @@ export function useGoals() {
       goalRatings.reduce((sum, r) => sum + r.rating, 0) / goalRatings.length;
     return Math.round((avg / 5) * 100);
   };
+
+  // ── Habit ratings ──────────────────────────────────────────
+
+  const setHabitRating = (
+    goalId: string,
+    habitId: string,
+    date: string,
+    rating: number
+  ) => {
+    setHabitRatings((prev) => {
+      const existing = prev.find(
+        (r) => r.goalId === goalId && r.habitId === habitId && r.date === date
+      );
+      let next: HabitRating[];
+      if (existing && existing.rating === rating) {
+        // toggle off
+        next = prev.filter(
+          (r) => !(r.goalId === goalId && r.habitId === habitId && r.date === date)
+        );
+      } else if (existing) {
+        next = prev.map((r) =>
+          r.goalId === goalId && r.habitId === habitId && r.date === date
+            ? { ...r, rating }
+            : r
+        );
+      } else {
+        next = [...prev, { goalId, habitId, date, rating }];
+      }
+
+      // Auto-update the goal's overall DayRating to the average of habit ratings
+      const dayHabitRatings = next.filter(
+        (r) => r.goalId === goalId && r.date === date
+      );
+      if (dayHabitRatings.length > 0) {
+        const avg =
+          dayHabitRatings.reduce((s, r) => s + r.rating, 0) /
+          dayHabitRatings.length;
+        const rounded = Math.round(avg);
+        setRatings((prevRatings) => {
+          const ex = prevRatings.find(
+            (r) => r.goalId === goalId && r.date === date
+          );
+          if (ex) {
+            return prevRatings.map((r) =>
+              r.goalId === goalId && r.date === date ? { ...r, rating: rounded } : r
+            );
+          }
+          return [...prevRatings, { goalId, date, rating: rounded }];
+        });
+      }
+
+      return next;
+    });
+  };
+
+  const getHabitRatingForDate = (
+    goalId: string,
+    habitId: string,
+    date: string
+  ): number | null => {
+    const found = habitRatings.find(
+      (r) => r.goalId === goalId && r.habitId === habitId && r.date === date
+    );
+    return found ? found.rating : null;
+  };
+
+  const getHabitRatingsForDate = (goalId: string, date: string): HabitRating[] =>
+    habitRatings.filter((r) => r.goalId === goalId && r.date === date);
+
+  // ── Notes ──────────────────────────────────────────────────
 
   const setNote = (date: string, note: string) => {
     setNotes((prev) => {
@@ -74,13 +187,20 @@ export function useGoals() {
   return {
     goals,
     ratings,
+    habitRatings,
     notes,
     addGoal,
     removeGoal,
+    renameGoal,
+    addHabitToGoal,
+    removeHabitFromGoal,
     setRating,
     getRatingForDate,
     getRatingsForGoal,
     getLongTermProgress,
+    setHabitRating,
+    getHabitRatingForDate,
+    getHabitRatingsForDate,
     setNote,
     getNoteForDate,
   };

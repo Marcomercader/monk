@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from "react";
 import Link from "next/link";
-import { motion } from "framer-motion";
+import { motion, AnimatePresence } from "framer-motion";
 import { useGoals } from "@/hooks/useGoals";
 
 const GOAL_COLORS = ["#7EC8A0", "#F0C870", "#88B0E8", "#F09880", "#C0A0E8"];
@@ -25,6 +25,7 @@ function getLast14Days(): string[] {
 
 export default function GoalPanel() {
   const { goals, ratings, getLongTermProgress, getRatingsForGoal } = useGoals();
+  const [expandedGoal, setExpandedGoal] = useState<string | null>(null);
 
   const today = new Date();
   const todayKey = formatDateKey(today);
@@ -39,7 +40,7 @@ export default function GoalPanel() {
   );
 
   const firstDay = new Date(calYear, calMonth, 1);
-  const startOffset = (firstDay.getDay() + 6) % 7; // Mon-first
+  const startOffset = (firstDay.getDay() + 6) % 7;
   const daysInMonth = new Date(calYear, calMonth + 1, 0).getDate();
 
   const prevCal = () => {
@@ -51,7 +52,6 @@ export default function GoalPanel() {
     else setCalMonth((m) => m + 1);
   };
 
-  // Compact 14-day chart dims
   const padL = 14, padB = 14, padT = 4, padR = 4;
   const W = 210, H = 70;
   const chartW = W - padL - padR;
@@ -60,21 +60,21 @@ export default function GoalPanel() {
   const yScale = (v: number) => padT + chartH - ((v - 1) / 4) * chartH;
 
   return (
-    <div className="w-60 rounded-2xl bg-white/8 backdrop-blur-lg border border-white/12 shadow-2xl flex flex-col gap-3 p-4 max-h-[82vh] overflow-y-auto">
+    <div className="w-60 rounded-2xl bg-monk-surface border border-monk-border shadow-md flex flex-col gap-3 p-4 max-h-[82vh] overflow-y-auto">
 
       {/* Goals link */}
       <Link href="/goals" className="block">
         <motion.div
-          whileHover={{ scale: 1.02, backgroundColor: "rgba(255,255,255,0.15)" }}
+          whileHover={{ scale: 1.02, backgroundColor: "rgba(0,0,0,0.04)" }}
           whileTap={{ scale: 0.97 }}
-          className="flex items-center justify-between px-3 py-2.5 rounded-xl bg-white/10 border border-white/15 transition-all cursor-pointer"
+          className="flex items-center justify-between px-3 py-2.5 rounded-xl bg-monk-bg border border-monk-border transition-all cursor-pointer"
         >
           <div className="flex items-center gap-2">
             <span className="text-base leading-none">🎯</span>
-            <span className="text-sm font-medium text-white/90 tracking-wide">Goals</span>
+            <span className="text-sm font-medium text-monk-text tracking-wide">Goals</span>
           </div>
           <svg viewBox="0 0 14 14" width="11" height="11" fill="none">
-            <path d="M5 3.5l3.5 3.5L5 10.5" stroke="rgba(255,255,255,0.5)" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
+            <path d="M5 3.5l3.5 3.5L5 10.5" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" className="text-monk-muted" />
           </svg>
         </motion.div>
       </Link>
@@ -85,16 +85,34 @@ export default function GoalPanel() {
           {goals.slice(0, 5).map((goal, gi) => {
             const color = GOAL_COLORS[gi % GOAL_COLORS.length];
             const pct = getLongTermProgress(goal.id);
+            const habits = goal.habits ?? [];
+            const isExpanded = expandedGoal === goal.id;
             return (
               <div key={goal.id}>
                 <div className="flex items-center justify-between mb-1">
                   <div className="flex items-center gap-1.5 min-w-0 flex-1">
                     <span className="w-1.5 h-1.5 rounded-full flex-shrink-0" style={{ background: color }} />
-                    <span className="text-[11px] text-white/75 truncate">{goal.name}</span>
+                    <span className="text-[11px] text-monk-text truncate">{goal.name}</span>
                   </div>
-                  <span className="text-[10px] text-white/40 ml-2 flex-shrink-0">{pct}%</span>
+                  <div className="flex items-center gap-1.5 flex-shrink-0">
+                    <span className="text-[10px] text-monk-muted">{pct}%</span>
+                    {habits.length > 0 && (
+                      <button
+                        onClick={() => setExpandedGoal(isExpanded ? null : goal.id)}
+                        className="text-[9px] text-monk-muted hover:text-monk-text transition-colors cursor-pointer leading-none"
+                      >
+                        <motion.span
+                          animate={{ rotate: isExpanded ? 90 : 0 }}
+                          transition={{ duration: 0.15 }}
+                          className="inline-block"
+                        >
+                          ›
+                        </motion.span>
+                      </button>
+                    )}
+                  </div>
                 </div>
-                <div className="h-1 bg-white/12 rounded-full overflow-hidden">
+                <div className="h-1 bg-monk-border rounded-full overflow-hidden">
                   <motion.div
                     initial={{ width: 0 }}
                     animate={{ width: `${pct}%` }}
@@ -103,48 +121,64 @@ export default function GoalPanel() {
                     style={{ background: color }}
                   />
                 </div>
+                {/* Habit sub-list */}
+                <AnimatePresence initial={false}>
+                  {isExpanded && habits.length > 0 && (
+                    <motion.div
+                      initial={{ height: 0, opacity: 0 }}
+                      animate={{ height: "auto", opacity: 1 }}
+                      exit={{ height: 0, opacity: 0 }}
+                      transition={{ duration: 0.2 }}
+                      className="overflow-hidden mt-1.5 pl-3 flex flex-col gap-1"
+                    >
+                      {habits.map((habit) => (
+                        <div key={habit.id} className="flex items-center gap-1.5">
+                          <span className="w-1 h-1 rounded-full flex-shrink-0" style={{ background: color, opacity: 0.5 }} />
+                          <span className="text-[10px] text-monk-muted truncate">{habit.name}</span>
+                        </div>
+                      ))}
+                    </motion.div>
+                  )}
+                </AnimatePresence>
               </div>
             );
           })}
         </div>
       ) : (
-        <p className="text-[11px] text-white/35 italic text-center py-1">
+        <p className="text-[11px] text-monk-muted italic text-center py-1">
           No goals yet
         </p>
       )}
 
       {/* Divider */}
-      <div className="border-t border-white/8" />
+      <div className="border-t border-monk-border" />
 
       {/* Mini calendar */}
       <div>
-        {/* Month nav */}
         <div className="flex items-center justify-between mb-2">
           <button
             onClick={prevCal}
-            className="text-white/40 hover:text-white/80 transition-colors cursor-pointer w-5 h-5 flex items-center justify-center text-sm"
+            className="text-monk-muted hover:text-monk-text transition-colors cursor-pointer w-5 h-5 flex items-center justify-center text-sm"
           >
             ‹
           </button>
-          <span className="text-[10px] text-white/55 tracking-wide">
+          <span className="text-[10px] text-monk-muted tracking-wide">
             {CAL_MONTHS[calMonth]} {calYear}
           </span>
           <button
             onClick={nextCal}
-            className="text-white/40 hover:text-white/80 transition-colors cursor-pointer w-5 h-5 flex items-center justify-center text-sm"
+            className="text-monk-muted hover:text-monk-text transition-colors cursor-pointer w-5 h-5 flex items-center justify-center text-sm"
           >
             ›
           </button>
         </div>
 
-        {/* Day headers */}
         <div className="grid grid-cols-7 mb-1">
           {["M","T","W","T","F","S","S"].map((d, i) => (
-            <div key={i} className="text-center text-[8px] text-white/25 py-0.5">{d}</div>
+            <div key={i} className="text-center text-[8px] text-monk-muted py-0.5">{d}</div>
           ))}
         </div>
 
-        {/* Grid */}
         <div className="grid grid-cols-7 gap-y-0.5">
           {Array.from({ length: startOffset }).map((_, i) => (
             <div key={`e${i}`} />
@@ -159,13 +193,13 @@ export default function GoalPanel() {
                 key={day}
                 className={`relative aspect-square flex items-center justify-center rounded text-[9px] transition-colors ${
                   isToday
-                    ? "bg-white/22 text-white font-semibold"
-                    : "text-white/40"
+                    ? "bg-monk-warm/50 text-monk-text font-semibold"
+                    : "text-monk-muted"
                 }`}
               >
                 {day}
                 {hasData && (
-                  <span className="absolute bottom-0.5 left-1/2 -translate-x-1/2 w-1 h-1 rounded-full bg-emerald-400 opacity-75" />
+                  <span className="absolute bottom-0.5 left-1/2 -translate-x-1/2 w-1 h-1 rounded-full bg-emerald-500 opacity-75" />
                 )}
               </div>
             );
@@ -173,35 +207,32 @@ export default function GoalPanel() {
         </div>
       </div>
 
-      {/* 14-day chart (only if goals exist) */}
+      {/* 14-day chart */}
       {goals.length > 0 && (
         <>
-          <div className="border-t border-white/8" />
+          <div className="border-t border-monk-border" />
           <div>
-            <p className="text-[8px] text-white/30 uppercase tracking-widest mb-1.5">
+            <p className="text-[8px] text-monk-muted uppercase tracking-widest mb-1.5">
               14-day trend
             </p>
             <svg viewBox={`0 0 ${W} ${H}`} width="100%" className="overflow-visible">
-              {/* Grid lines */}
               {[1, 3, 5].map((r) => (
                 <line
                   key={r}
                   x1={padL} y1={yScale(r)} x2={W - padR} y2={yScale(r)}
-                  stroke="white" strokeWidth="0.4" opacity="0.12"
+                  stroke="#c8b088" strokeWidth="0.4" opacity="0.6"
                 />
               ))}
-              {/* Day labels every 3 */}
               {last14.map((dateStr, i) => {
                 if (i % 4 !== 0) return null;
                 const d = new Date(dateStr + "T12:00:00");
                 return (
                   <text key={dateStr} x={xScale(i)} y={H} fontSize="7"
-                    fill="rgba(255,255,255,0.3)" textAnchor="middle">
+                    fill="#8a7f74" textAnchor="middle">
                     {DAY_LABELS[d.getDay()]}
                   </text>
                 );
               })}
-              {/* Goal lines */}
               {goals.slice(0, 5).map((goal, gi) => {
                 const color = GOAL_COLORS[gi % GOAL_COLORS.length];
                 const rMap = new Map(getRatingsForGoal(goal.id).map((r) => [r.date, r.rating]));
