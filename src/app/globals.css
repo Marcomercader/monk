@@ -1,5 +1,9 @@
 @import "tailwindcss";
 
+.font-handwriting {
+  font-family: 'Comic Neue', cursive;
+}
+
 /* Class-based dark mode — applied via .dark on <html> */
 @custom-variant dark (&:where(.dark, .dark *));
 
