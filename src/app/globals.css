@@ -34,6 +34,7 @@
   --color-monk-warm: var(--monk-warm);
   --color-monk-border: var(--monk-border);
   --font-sans: var(--font-inter), system-ui, sans-serif;
+  --font-serif: var(--font-lora), Georgia, serif;
 }
 
 /* ── Base ────────────────────────────────────────────── */
