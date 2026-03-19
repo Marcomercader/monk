@@ -13,6 +13,27 @@ const AVATAR_IMAGES: Record<AvatarState, string> = {
   absent:     "/monk-4.png",
 };
 
+async function registerPush(userId: string) {
+  if (!("serviceWorker" in navigator) || !("PushManager" in window)) return;
+  if (Notification.permission === "denied") return;
+
+  const permission = await Notification.requestPermission();
+  if (permission !== "granted") return;
+
+  const reg = await navigator.serviceWorker.ready;
+  const existing = await reg.pushManager.getSubscription();
+  const sub = existing ?? await reg.pushManager.subscribe({
+    userVisibleOnly: true,
+    applicationServerKey: process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY,
+  });
+
+  await fetch("/api/subscribe", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ userId, subscription: sub.toJSON() }),
+  });
+}
+
 export default function Home() {
   const router = useRouter();
   const [avatarState, setAvatarState] = useState<AvatarState>("stable");
@@ -27,9 +48,12 @@ export default function Home() {
     }
     setUsername(name);
 
-    // Load avatar state from Supabase
+    // Load avatar state from Supabase + register push
     ensureAuth()
-      .then(user => loadMemory(user.id))
+      .then(user => {
+        registerPush(user.id);
+        return loadMemory(user.id);
+      })
       .then(mem  => {
         if (mem?.avatar_state) setAvatarState(mem.avatar_state);
       })
