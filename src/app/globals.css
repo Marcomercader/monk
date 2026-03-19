@@ -4,6 +4,10 @@
 @custom-variant dark (&:where(.dark, .dark *));
 
 /* ── Colour tokens ───────────────────────────────────── */
+html, body {
+  background-color: #ffffff;
+}
+
 :root {
   --monk-bg: #fdf0e0;
   --monk-surface: #e8d5b0;
