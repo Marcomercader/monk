@@ -1,0 +1,146 @@
+import { supabase } from './supabase'
+
+export type AvatarState = 'thriving' | 'stable' | 'struggling' | 'absent'
+
+export interface MonkMemory {
+  id: string
+  user_id: string
+  depth_score: number
+  recurring_themes: Record<string, number>
+  emotional_arc: number[]
+  relationship_summary: string
+  avatar_state: AvatarState
+  updated_at: string
+}
+
+// ── Avatar state calculation ──────────────────────────────────────────────────
+// Takes the last 7 entries (newest first) with timestamps.
+// Recent 2 entries count double. 3+ days silence drops base by 1.5.
+export function calculateAvatarState(
+  entries: Array<{ emotional_score: number; created_at: string }>
+): AvatarState {
+  if (entries.length === 0) return 'stable'
+
+  const last7 = entries.slice(0, 7)
+
+  // Weighted average — most recent 2 count double
+  let weightedSum = 0
+  let totalWeight = 0
+  last7.forEach((entry, i) => {
+    const weight = i < 2 ? 2 : 1
+    weightedSum += entry.emotional_score * weight
+    totalWeight += weight
+  })
+  let base = weightedSum / totalWeight
+
+  // Absence penalty — 3+ days since last entry
+  const mostRecentMs = new Date(last7[0].created_at).getTime()
+  const daysSince = (Date.now() - mostRecentMs) / (1000 * 60 * 60 * 24)
+  if (daysSince >= 3) base -= 1.5
+
+  // Map to state
+  if (base >= 4.0)  return 'thriving'
+  if (base >= 1.0)  return 'stable'
+  if (base > -2.0)  return 'struggling'
+  return 'absent'
+}
+
+// Fetches last 7 entries, calculates state, persists it to monk_memory
+export async function refreshAvatarState(userId: string): Promise<AvatarState> {
+  const entries = await getRecentEntries(userId, 7)
+  const state = calculateAvatarState(entries)
+  await updateMemory(userId, { avatar_state: state })
+  return state
+}
+
+// Anonymous sign-in — gives a real user_id so RLS policies work
+export async function ensureAuth() {
+  const { data: { session } } = await supabase.auth.getSession()
+  if (session?.user) return session.user
+
+  const { data, error } = await supabase.auth.signInAnonymously()
+  if (error) throw new Error(`Auth failed: ${error.message}`)
+  return data.user!
+}
+
+// Load or create monk memory for current user
+export async function loadMemory(userId: string): Promise<MonkMemory> {
+  const { data } = await supabase
+    .from('monk_memory')
+    .select('*')
+    .eq('user_id', userId)
+    .single()
+
+  if (data) return data
+
+  const { data: created } = await supabase
+    .from('monk_memory')
+    .insert({ user_id: userId })
+    .select()
+    .single()
+
+  return created
+}
+
+export async function updateMemory(userId: string, updates: Partial<MonkMemory>) {
+  await supabase
+    .from('monk_memory')
+    .update({ ...updates, updated_at: new Date().toISOString() })
+    .eq('user_id', userId)
+}
+
+export async function saveEntry(userId: string, content: string, emotionalScore: number, themes: string[]) {
+  await supabase.from('entries').insert({
+    user_id: userId,
+    content,
+    emotional_score: emotionalScore,
+    themes,
+    input_type: 'text',
+  })
+}
+
+export async function getRecentEntries(userId: string, limit = 20) {
+  const { data } = await supabase
+    .from('entries')
+    .select('content, emotional_score, themes, created_at')
+    .eq('user_id', userId)
+    .order('created_at', { ascending: false })
+    .limit(limit)
+
+  return data || []
+}
+
+export async function saveVows(userId: string, vows: string[]) {
+  // Clear existing vows and insert fresh ones
+  await supabase.from('vows').delete().eq('user_id', userId)
+  if (vows.filter(v => v.trim()).length === 0) return
+
+  await supabase.from('vows').insert(
+    vows
+      .filter(v => v.trim())
+      .map(text => ({ user_id: userId, text: text.trim() }))
+  )
+}
+
+export function mergeThemes(existing: Record<string, number>, newThemes: string[]): Record<string, number> {
+  const updated = { ...existing }
+  newThemes.forEach(t => { updated[t] = (updated[t] || 0) + 1 })
+  return updated
+}
+
+// ── Message persistence ───────────────────────────────────────────────────────
+export async function loadMessages(userId: string, limit = 40) {
+  const { data } = await supabase
+    .from('messages')
+    .select('role, content')
+    .eq('user_id', userId)
+    .order('created_at', { ascending: true })
+    .limit(limit)
+
+  return (data || []) as Array<{ role: 'user' | 'assistant'; content: string }>
+}
+
+export async function saveMessage(userId: string, role: 'user' | 'assistant', content: string) {
+  const { error } = await supabase.from('messages').insert({ user_id: userId, role, content })
+  if (error) console.error('saveMessage failed:', error.message, error.code)
+}

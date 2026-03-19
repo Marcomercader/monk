@@ -3,33 +3,43 @@
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { motion } from "framer-motion";
+import { ensureAuth, loadMemory, AvatarState } from "@/lib/memory";
 
-const MONK_STATES = [
-  { id: "1", label: "1", src: "/monk-1.png" },
-  { id: "2", label: "2", src: "/monk-2.png" },
-  { id: "3", label: "3", src: "/monk-3.png" },
-  { id: "4", label: "4", src: "/monk-4.png" },
-];
+// Maps avatar state → monk image
+const AVATAR_IMAGES: Record<AvatarState, string> = {
+  thriving:   "/monk-1.png",
+  stable:     "/monk-2.png",
+  struggling: "/monk-3.png",
+  absent:     "/monk-4.png",
+};
 
 export default function Home() {
   const router = useRouter();
-  const [activeState, setActiveState] = useState("1");
-  const [ready, setReady] = useState(false);
-  const [username, setUsername] = useState("");
+  const [avatarState, setAvatarState] = useState<AvatarState>("stable");
+  const [ready, setReady]             = useState(false);
+  const [username, setUsername]       = useState("");
 
   useEffect(() => {
     const name = localStorage.getItem("monk_username");
     if (!name) {
       router.replace("/onboarding");
-    } else {
-      setUsername(name);
-      setReady(true);
+      return;
     }
+    setUsername(name);
+
+    // Load avatar state from Supabase
+    ensureAuth()
+      .then(user => loadMemory(user.id))
+      .then(mem  => {
+        if (mem?.avatar_state) setAvatarState(mem.avatar_state);
+      })
+      .catch(() => { /* stay on default */ })
+      .finally(() => setReady(true));
   }, [router]);
 
   if (!ready) return null;
 
-  const currentMonk = MONK_STATES.find((s) => s.id === activeState) ?? MONK_STATES[0];
+  const src = AVATAR_IMAGES[avatarState];
 
   return (
     <div className="min-h-screen w-full flex items-center justify-center" style={{ backgroundColor: "#f0ede8" }}>
@@ -72,25 +82,6 @@ export default function Home() {
           </svg>
         </motion.button>
 
-        {/* State radio buttons — right side */}
-        <div className="absolute right-7 top-1/2 -translate-y-1/2 flex flex-col gap-4 z-10">
-          {MONK_STATES.map((state) => (
-            <label key={state.id} className="flex items-center gap-2 cursor-pointer">
-              <input
-                type="radio"
-                name="monk-state"
-                value={state.id}
-                checked={activeState === state.id}
-                onChange={() => setActiveState(state.id)}
-                className="accent-[#bbb]"
-              />
-              <span className="text-[11px] tracking-[0.25em] lowercase" style={{ color: "#bbb" }}>
-                {state.label}
-              </span>
-            </label>
-          ))}
-        </div>
-
         {/* Hello name — top left */}
         <motion.p
           initial={{ opacity: 0 }}
@@ -113,16 +104,16 @@ export default function Home() {
           style={{ zIndex: 1, height: "55%", width: "200%", bottom: "-17%" }}
         />
 
-        {/* Avatar */}
+        {/* Avatar — driven by emotional arc */}
         <motion.img
-          key={activeState}
-          src={currentMonk.src}
+          key={avatarState}
+          src={src}
           alt=""
           initial={{ opacity: 0, y: 16 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.9, ease: "easeOut" }}
           className="absolute bottom-0 left-1/2 -translate-x-1/2 object-contain pointer-events-none"
-          style={{ width: activeState === "4" ? "14.52rem" : "13.2rem", zIndex: 2 }}
+          style={{ width: avatarState === "absent" ? "14.52rem" : "13.2rem", zIndex: 2 }}
         />
 
         {/* Clickable overlay */}

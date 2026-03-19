@@ -8,6 +8,8 @@
     "start": "next start"
   },
   "dependencies": {
+    "@anthropic-ai/sdk": "^0.80.0",
+    "@supabase/supabase-js": "^2.99.2",
     "framer-motion": "^12.34.3",
     "next": "16.1.6",
     "openai": "^6.25.0",
