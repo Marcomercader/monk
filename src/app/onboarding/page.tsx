@@ -75,7 +75,7 @@ export default function OnboardingPage() {
   const inputStyle = { borderColor: "#c8b088", color: "#2d2926", caretColor: "#2d2926" };
 
   return (
-    <div className="min-h-screen w-full flex items-center justify-center" style={{ backgroundColor: "#f0ede8" }}>
+    <div className="min-h-screen w-full flex items-center justify-center" style={{ backgroundColor: "#ffffff" }}>
       <div
         className="flex items-center justify-center overflow-hidden"
         style={{

@@ -66,7 +66,7 @@ export default function Home() {
   const src = AVATAR_IMAGES[avatarState];
 
   return (
-    <div className="min-h-screen w-full flex items-center justify-center" style={{ backgroundColor: "#f0ede8" }}>
+    <div className="min-h-screen w-full flex items-center justify-center" style={{ backgroundColor: "#ffffff" }}>
       {/* Phone frame */}
       <div
         className="relative overflow-hidden select-none"
