@@ -14,7 +14,13 @@ const lora = Lora({
 
 export const metadata: Metadata = {
   title: "monk",
-  description: "A calm space for daily practice and reflection.",
+  description: "A living relationship with an AI sensei.",
+  manifest: "/manifest.json",
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: "default",
+    title: "Monk",
+  },
 };
 
 export default function RootLayout({
@@ -25,6 +31,10 @@ export default function RootLayout({
   return (
     <html lang="en" suppressHydrationWarning>
       <head>
+        <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+        <meta name="theme-color" content="#fdf0e0" />
+        <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png" />
+        <link rel="manifest" href="/manifest.json" />
         {/* Apply saved theme before first paint to avoid flash */}
         <script
           dangerouslySetInnerHTML={{
