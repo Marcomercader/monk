@@ -10,6 +10,8 @@ export interface MonkMemory {
   emotional_arc: number[]
   relationship_summary: string
   avatar_state: AvatarState
+  about: string
+  vows: string[]
   updated_at: string
 }
 

@@ -31,8 +31,14 @@ export default function ThinkPage() {
       const mem = await loadMemory(user.id);
       memoryRef.current = mem;
 
-      const storedVows = JSON.parse(localStorage.getItem("monk_vows") ?? "[]") as string[];
+      const storedVows  = JSON.parse(localStorage.getItem("monk_vows") ?? "[]") as string[];
+      const storedAbout = localStorage.getItem("monk_about") ?? "";
       if (storedVows.some((v: string) => v.trim())) await saveVows(user.id, storedVows);
+      // Sync about + vows into monk_memory so Edge Functions can access them
+      await updateMemory(user.id, {
+        about: storedAbout,
+        vows: storedVows.filter((v: string) => v.trim()),
+      });
 
       const prior = await loadMessages(user.id);
       if (prior.length > 0) setMessages(prior);
