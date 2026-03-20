@@ -22,6 +22,8 @@ interface Memory {
   depth_score: number;
   relationship_summary: string;
   recurring_themes: Record<string, number>;
+  about?: string;
+  vows?: string[];
 }
 
 interface Subscription {
@@ -108,21 +110,42 @@ function morningPulseSentToday(logs: NotifLog[]): boolean {
 // ── Message builders ───────────────────────────────────────────────────────
 
 async function buildMorningPulse(apiKey: string, entries: Entry[], mem: Memory): Promise<string> {
-  // Pull the last 5 entries and their emotional trajectory
+  const vows  = (mem.vows || []).filter(Boolean);
+  const about = mem.about || "";
+  const hasEntries = entries.length > 0;
+  const hasVows    = vows.length > 0;
+  const hasAbout   = about.trim().length > 0;
+
+  // Nothing to go on — nudge them to set vows
+  if (!hasEntries && !hasVows && !hasAbout) {
+    return "You haven't made any vows. Start there.";
+  }
+
+  // No entries yet — ground in vows and description only
+  if (!hasEntries) {
+    const context = `
+What they said about themselves: ${hasAbout ? about : "Nothing yet."}
+Their vows: ${hasVows ? vows.map(v => `— ${v}`).join(", ") : "None declared."}
+`.trim();
+    return generateMessage(
+      apiKey,
+      `You are a monk reaching out to someone you barely know. You have only their vows and self-description. Write ONE cold, short sentence — maximum 10 words. Reference one of their vows directly. No warmth. No greeting. No emoji. Speak as someone watching from a distance.`,
+      context
+    );
+  }
+
+  // Has entries — full context
   const recentEntries = entries.slice(0, 5);
-  const arc = recentEntries.map((e) => e.emotional_score).reverse().join(", ");
-  const entryTexts = recentEntries.map((e, i) => `Entry ${i + 1}: "${e.content}"`).join("\n");
+  const arc           = recentEntries.map((e) => e.emotional_score).reverse().join(", ");
+  const entryTexts    = recentEntries.map((e, i) => `Entry ${i + 1}: "${e.content}"`).join("\n");
 
-  // Find anything that sounds unresolved — questions, intentions, conflicts
   const context = `
-Who this person is: ${mem.relationship_summary || "early in the relationship, not much known yet"}
-
+Who this person is: ${mem.relationship_summary || (hasAbout ? about : "early in the relationship")}
+Their vows: ${hasVows ? vows.map(v => `— ${v}`).join("\n") : "none declared"}
 Their recent entries (newest first):
-${entryTexts || "No entries yet."}
-
-Their emotional arc (oldest to newest, scale -5 to 5): ${arc || "unknown"}
-
-Recurring themes they return to: ${Object.entries(mem.recurring_themes || {}).sort((a,b) => b[1]-a[1]).slice(0,4).map(([t,n]) => `${t} (${n}x)`).join(", ") || "none yet"}
+${entryTexts}
+Their emotional arc (oldest to newest, -5 to 5): ${arc || "unknown"}
+Recurring themes: ${Object.entries(mem.recurring_themes || {}).sort((a,b) => b[1]-a[1]).slice(0,4).map(([t,n]) => `${t} (${n}x)`).join(", ") || "none yet"}
 `.trim();
 
   return generateMessage(
@@ -209,6 +232,9 @@ Good examples: "You have been away." / "Still here." / "The door is open."`,
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
 
+  const url      = new URL(req.url);
+  const testMode = url.searchParams.get("test") === "true";
+
   const ANTHROPIC_KEY = Deno.env.get("ANTHROPIC_API_KEY")!;
   const VAPID_PUBLIC  = Deno.env.get("VAPID_PUBLIC_KEY")!;
   const VAPID_PRIVATE = Deno.env.get("VAPID_PRIVATE_KEY")!;
@@ -241,7 +267,7 @@ Deno.serve(async (req) => {
         fetch(`${SUPABASE_URL}/rest/v1/entries?user_id=eq.${userId}&select=content,emotional_score,created_at,themes&order=created_at.desc&limit=10`, { headers: db }),
         fetch(`${SUPABASE_URL}/rest/v1/entries?user_id=eq.${userId}&created_at=gte.${sevenDaysAgo}&select=content,themes,created_at&order=created_at.desc`, { headers: db }),
         fetch(`${SUPABASE_URL}/rest/v1/notification_log?user_id=eq.${userId}&select=type,sent_at,message&order=sent_at.desc&limit=30`, { headers: db }),
-        fetch(`${SUPABASE_URL}/rest/v1/monk_memory?user_id=eq.${userId}&select=depth_score,relationship_summary,recurring_themes&limit=1`, { headers: db }),
+        fetch(`${SUPABASE_URL}/rest/v1/monk_memory?user_id=eq.${userId}&select=depth_score,relationship_summary,recurring_themes,about,vows&limit=1`, { headers: db }),
       ]);
 
       const entries: Entry[]   = await entriesRes.json();
@@ -250,22 +276,24 @@ Deno.serve(async (req) => {
       const mems: Memory[]     = await memRes.json();
       const mem: Memory        = mems[0] ?? { depth_score: 0, relationship_summary: "", recurring_themes: {} };
 
-      // Already checked in today — monk doesn't message people who are present
-      if (wasActiveTodayAlready(entries)) {
-        results.push({ user: userId, skipped: "active today" });
-        continue;
-      }
+      if (!testMode) {
+        // Already checked in today — monk doesn't message people who are present
+        if (wasActiveTodayAlready(entries)) {
+          results.push({ user: userId, skipped: "active today" });
+          continue;
+        }
 
-      // Max 2 notifications per day
-      if (notificationsSentToday(logs) >= 2) {
-        results.push({ user: userId, skipped: "daily limit reached" });
-        continue;
-      }
+        // Max 2 notifications per day
+        if (notificationsSentToday(logs) >= 2) {
+          results.push({ user: userId, skipped: "daily limit reached" });
+          continue;
+        }
 
-      // Min 6 hours between notifications
-      if (hoursSinceLastNotification(logs) < 6) {
-        results.push({ user: userId, skipped: "too soon" });
-        continue;
+        // Min 6 hours between notifications
+        if (hoursSinceLastNotification(logs) < 6) {
+          results.push({ user: userId, skipped: "too soon" });
+          continue;
+        }
       }
 
       // ── Decide what to send ──────────────────────────────────────────────
@@ -286,8 +314,7 @@ Deno.serve(async (req) => {
         notifType = "pattern_surface";
         message   = await buildPatternSurface(ANTHROPIC_KEY, pattern.theme, entries7d, pattern.count);
 
-      } else if (!morningDone && currentHour >= preferredHour && currentHour < preferredHour + 2) {
-        // Morning pulse: only in the 2-hour window around their preferred time
+      } else if (testMode || (!morningDone && currentHour >= preferredHour && currentHour < preferredHour + 2)) {
         notifType = "morning_pulse";
         message   = await buildMorningPulse(ANTHROPIC_KEY, entries, mem);
       }

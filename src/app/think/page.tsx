@@ -64,8 +64,9 @@ export default function ThinkPage() {
     if (inputRef.current) inputRef.current.style.height = "auto";
 
     try {
-      const mem  = memoryRef.current;
-      const vows = JSON.parse(localStorage.getItem("monk_vows") ?? "[]") as string[];
+      const mem   = memoryRef.current;
+      const vows  = JSON.parse(localStorage.getItem("monk_vows")  ?? "[]") as string[];
+      const about = localStorage.getItem("monk_about") ?? "";
 
       const res = await fetch("/api/think", {
         method: "POST",
@@ -78,6 +79,7 @@ export default function ThinkPage() {
             recurring_themes:     mem?.recurring_themes ?? {},
             emotional_arc:        mem?.emotional_arc ?? [],
             vows,
+            about,
           },
         }),
       });
