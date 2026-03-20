@@ -28,6 +28,7 @@ interface Subscription {
   user_id: string;
   subscription: object;
   preferred_hour: number;
+  timezone: string;
 }
 
 // ── Claude call ────────────────────────────────────────────────────────────
@@ -107,38 +108,99 @@ function morningPulseSentToday(logs: NotifLog[]): boolean {
 // ── Message builders ───────────────────────────────────────────────────────
 
 async function buildMorningPulse(apiKey: string, entries: Entry[], mem: Memory): Promise<string> {
-  const recentText = entries.slice(0, 5).map((e) => e.content).join(" | ");
+  // Pull the last 5 entries and their emotional trajectory
+  const recentEntries = entries.slice(0, 5);
+  const arc = recentEntries.map((e) => e.emotional_score).reverse().join(", ");
+  const entryTexts = recentEntries.map((e, i) => `Entry ${i + 1}: "${e.content}"`).join("\n");
+
+  // Find anything that sounds unresolved — questions, intentions, conflicts
+  const context = `
+Who this person is: ${mem.relationship_summary || "early in the relationship, not much known yet"}
+
+Their recent entries (newest first):
+${entryTexts || "No entries yet."}
+
+Their emotional arc (oldest to newest, scale -5 to 5): ${arc || "unknown"}
+
+Recurring themes they return to: ${Object.entries(mem.recurring_themes || {}).sort((a,b) => b[1]-a[1]).slice(0,4).map(([t,n]) => `${t} (${n}x)`).join(", ") || "none yet"}
+`.trim();
+
   return generateMessage(
     apiKey,
-    `You are a monk reaching out to someone you have been watching. Write ONE sentence, maximum 15 words. No greeting. No emoji. No filler. Reference something specific from their recent entries — something unresolved. Make it feel like you already know what's on their mind.`,
-    `Recent entries: ${recentText || "none yet"}. Summary: ${mem.relationship_summary || "early relationship"}.`
+    `You are a monk. You have been watching this person closely. You are reaching out with one sentence — not a reminder, not a prompt. A statement from someone who has been paying real attention.
+
+Rules:
+— Maximum 15 words
+— No greeting, no emoji, no "I hope you're..."
+— Speak directly, as if mid-conversation
+— Reference something specific and unresolved from their entries — a decision they haven't made, something they said they would do, a feeling they keep returning to
+— Do not explain yourself or your observation
+— The sentence should make them pause, not feel guilty
+
+Bad examples: "How are you feeling today?" / "Remember to check in!" / "You've been on my mind."
+Good examples: "You said you were going to call her. Did you?" / "Three days of the same feeling. What is underneath it?" / "You keep circling this without naming it."`,
+    context
   );
 }
 
 async function buildPatternSurface(apiKey: string, theme: string, entries7d: Entry[], count: number): Promise<string> {
-  const examples = entries7d
+  const relevantEntries = entries7d
     .filter((e) => Array.isArray(e.themes) && e.themes.includes(theme))
-    .slice(0, 3)
-    .map((e) => e.content)
-    .join(" | ");
+    .slice(0, 4)
+    .map((e, i) => `Entry ${i + 1}: "${e.content}"`)
+    .join("\n");
+
+  const context = `
+The theme "${theme}" has appeared ${count} times across their last 7 days of entries.
+
+The entries where it appears:
+${relevantEntries}
+`.trim();
+
   return generateMessage(
     apiKey,
-    `You are a monk who has noticed a repeating pattern. Write ONE sentence, maximum 15 words. Name the theme and the frequency. Be specific. Example: "You've mentioned [thing] four times this week without saying why."`,
-    `Theme "${theme}" appeared ${count} times in 7 days. Examples: ${examples}`
+    `You are a monk who has noticed something this person hasn't named yet. Write ONE sentence surfacing the pattern you've observed — maximum 15 words.
+
+Rules:
+— Name the theme and how many times it has appeared
+— Do not moralize or offer advice
+— Do not ask a question
+— Speak as someone who has been watching, not analyzing
+— The sentence should feel like being seen, not diagnosed
+
+Bad examples: "You seem to be struggling with family issues." / "Have you considered why you keep thinking about this?"
+Good examples: "You have mentioned your father four times this week without saying why." / "Work has come up in every entry this week. You haven't said how you actually feel about it."`,
+    context
   );
 }
 
 async function buildAbsenceCall(apiKey: string, entries: Entry[], mem: Memory, daysSince: number): Promise<string> {
   const isClose = mem.depth_score > 20;
   const lastEntry = entries[0]?.content ?? "";
+  const lastThemes = entries.slice(0, 3).flatMap((e) => e.themes || []).slice(0, 3).join(", ");
+
+  const context = isClose
+    ? `Away for ${Math.floor(daysSince)} days. Last entry: "${lastEntry}". What they were thinking about: ${lastThemes || "unclear"}. Depth score: ${mem.depth_score}.`
+    : `Away for ${Math.floor(daysSince)} days. Depth score: ${mem.depth_score} — early relationship, not much shared yet.`;
+
   return generateMessage(
     apiKey,
     isClose
-      ? `You are a monk who has noticed someone's absence. You know them well. Write ONE sentence, maximum 12 words. No guilt. No urgency. Acknowledge their absence with the weight of someone who noticed. Example: "I noticed. Come back when you're ready."`
-      : `You are a monk who has noticed someone's absence. You barely know them. Write ONE sentence, maximum 8 words. Dry, sparse. Example: "You have been away."`,
-    isClose
-      ? `Away for ${Math.floor(daysSince)} days. Last entry: "${lastEntry}". Depth: ${mem.depth_score}.`
-      : `Away for ${Math.floor(daysSince)} days. Depth score: ${mem.depth_score}.`
+      ? `You are a monk. Someone you know well has been gone for days. You are sending them one sentence — not to guilt them, not to beg, not to escalate. You are simply letting them know you noticed.
+
+Rules:
+— Maximum 12 words
+— No guilt language, no urgency, no "we miss you"
+— You may reference something from their last entry if it feels true
+— Speak with the weight of someone who has been paying attention and simply wants them back
+— The monk does not beg. Silence after this.
+
+Good examples: "I noticed. Come back when you're ready." / "You left mid-thought. It's still here when you return." / "The light has been low. I've noticed."
+Bad examples: "You haven't checked in — don't break your streak!" / "Are you okay? We're worried."`
+      : `You are a monk. Someone you barely know has gone quiet. Send them one sentence — dry, sparse, no emotion. You are simply marking their absence. Maximum 8 words. No guilt. No warmth. Just acknowledgment.
+
+Good examples: "You have been away." / "Still here." / "The door is open."`,
+    context
   );
 }
 
@@ -161,7 +223,6 @@ Deno.serve(async (req) => {
     "Content-Type": "application/json",
   };
 
-  const currentHour  = new Date().getUTCHours();
   const sevenDaysAgo = new Date(Date.now() - 7 * 86400000).toISOString();
 
   const subsRes = await fetch(`${SUPABASE_URL}/rest/v1/push_subscriptions?select=*`, { headers: db });
@@ -169,8 +230,11 @@ Deno.serve(async (req) => {
   const results = [];
 
   for (const sub of subs) {
-    const userId = sub.user_id;
+    const userId       = sub.user_id;
     const preferredHour = sub.preferred_hour ?? 8;
+    const timezone      = sub.timezone || "America/New_York";
+    // Get the current hour in the user's local timezone
+    const currentHour   = parseInt(new Intl.DateTimeFormat("en-US", { hour: "numeric", hour12: false, timeZone: timezone }).format(new Date()));
 
     try {
       const [entriesRes, entries7dRes, logsRes, memRes] = await Promise.all([

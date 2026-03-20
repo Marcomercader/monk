@@ -32,10 +32,11 @@ async function registerPush(userId: string) {
       userVisibleOnly: true,
       applicationServerKey: urlBase64ToUint8Array(vapidKey),
     });
+    const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
     const res = await fetch("/api/subscribe", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ userId, subscription: sub.toJSON() }),
+      body: JSON.stringify({ userId, subscription: sub.toJSON(), timezone }),
     });
     if (!res.ok) console.error("subscribe failed", await res.text());
   } catch (err) {
