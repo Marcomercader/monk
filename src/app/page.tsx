@@ -117,7 +117,7 @@ export default function Home() {
         className="absolute left-1/2 -translate-x-1/2 object-contain pointer-events-none"
         style={{
           width: avatarState === "absent" ? "14.52rem" : "13.2rem",
-          bottom: 0,
+          bottom: "-1.5%",
           zIndex: 2,
         }}
       />
