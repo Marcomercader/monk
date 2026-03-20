@@ -97,6 +97,39 @@ export async function saveEntry(userId: string, content: string, emotionalScore:
     themes,
     input_type: 'text',
   })
+  // Update preferred_hour based on when the user actually checks in
+  updatePreferredHour(userId)
+}
+
+async function updatePreferredHour(userId: string) {
+  // Get first entry of each day for the last 7 days
+  const sevenDaysAgo = new Date(Date.now() - 7 * 86400000).toISOString()
+  const { data: entries } = await supabase
+    .from('entries')
+    .select('created_at')
+    .eq('user_id', userId)
+    .gte('created_at', sevenDaysAgo)
+    .order('created_at', { ascending: true })
+
+  if (!entries || entries.length === 0) return
+
+  // Group by day, take the first entry of each day, extract UTC hour
+  const firstHourByDay: Record<string, number> = {}
+  for (const entry of entries) {
+    const day  = entry.created_at.split('T')[0]
+    const hour = new Date(entry.created_at).getUTCHours()
+    if (!(day in firstHourByDay)) firstHourByDay[day] = hour
+  }
+
+  const hours = Object.values(firstHourByDay)
+  if (hours.length === 0) return
+
+  const avgHour = Math.round(hours.reduce((a, b) => a + b, 0) / hours.length)
+
+  await supabase
+    .from('push_subscriptions')
+    .update({ preferred_hour: avgHour })
+    .eq('user_id', userId)
 }
 
 export async function getRecentEntries(userId: string, limit = 20) {
