@@ -75,16 +75,10 @@ export default function OnboardingPage() {
   const inputStyle = { borderColor: "#c8b088", color: "#2d2926", caretColor: "#2d2926" };
 
   return (
-    <div className="min-h-screen w-full flex items-center justify-center" style={{ backgroundColor: "#ffffff" }}>
+    <div className="w-full flex items-center justify-center" style={{ minHeight: "100dvh", backgroundColor: "#ffffff" }}>
       <div
-        className="flex items-center justify-center overflow-hidden"
-        style={{
-          width: "min(100vw, 390px)",
-          height: "min(100vh, 844px)",
-          backgroundColor: "#fdf0e0",
-          borderRadius: "clamp(0px, 4vw, 44px)",
-          boxShadow: "0 32px 80px rgba(0,0,0,0.18), 0 0 0 1px rgba(0,0,0,0.06)",
-        }}
+        className="flex items-center justify-center w-full"
+        style={{ minHeight: "100dvh", backgroundColor: "#ffffff" }}
       >
         <AnimatePresence mode="wait">
 
