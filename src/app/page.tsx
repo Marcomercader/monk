@@ -103,7 +103,7 @@ export default function Home() {
         animate={{ opacity: 1 }}
         transition={{ duration: 1.2, ease: "easeOut" }}
         className="absolute left-1/2 -translate-x-1/2 pointer-events-none"
-        style={{ zIndex: 1, width: "200%", bottom: "-10%" }}
+        style={{ zIndex: 1, height: "55%", width: "200%", bottom: "-17%" }}
       />
 
       {/* Avatar */}
