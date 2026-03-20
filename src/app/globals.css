@@ -4,8 +4,9 @@
 @custom-variant dark (&:where(.dark, .dark *));
 
 /* ── Colour tokens ───────────────────────────────────── */
-html, body {
+html, body, #__next {
   background-color: #ffffff;
+  min-height: 100%;
 }
 
 :root {

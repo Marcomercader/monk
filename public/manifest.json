@@ -2,10 +2,11 @@
   "name": "Monk",
   "short_name": "Monk",
   "description": "A living relationship with an AI sensei.",
+  "version": "1.1.0",
   "start_url": "/",
   "display": "standalone",
-  "background_color": "#fdf0e0",
-  "theme_color": "#fdf0e0",
+  "background_color": "#ffffff",
+  "theme_color": "#ffffff",
   "orientation": "portrait",
   "icons": [
     { "src": "/icons/icon-72x72.png",   "sizes": "72x72",   "type": "image/png" },
