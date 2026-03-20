@@ -116,9 +116,8 @@ export default function Home() {
         transition={{ duration: 0.9, ease: "easeOut" }}
         className="absolute left-1/2 -translate-x-1/2 object-contain pointer-events-none"
         style={{
-          width: avatarState === "absent" ? "60vw" : "55vw",
-          maxWidth: "260px",
-          bottom: "8%",
+          width: avatarState === "absent" ? "14.52rem" : "13.2rem",
+          bottom: 0,
           zIndex: 2,
         }}
       />
