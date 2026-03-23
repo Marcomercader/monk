@@ -118,8 +118,10 @@ async function updatePreferredHour(userId: string) {
   // Group by day, take the first entry of each day, extract UTC hour
   const firstHourByDay: Record<string, number> = {}
   for (const entry of entries) {
+    const d    = new Date(entry.created_at)
     const day  = entry.created_at.split('T')[0]
-    const hour = new Date(entry.created_at).getUTCHours()
+    // Store local hour — Edge Function compares against local hour via timezone
+    const hour = d.getHours()
     if (!(day in firstHourByDay)) firstHourByDay[day] = hour
   }
 
