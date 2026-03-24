@@ -91,13 +91,13 @@ export async function updateMemory(userId: string, updates: Partial<MonkMemory>)
     .eq('user_id', userId)
 }
 
-export async function saveEntry(userId: string, content: string, emotionalScore: number, themes: string[]) {
+export async function saveEntry(userId: string, content: string, emotionalScore: number, themes: string[], inputType: 'text' | 'voice' = 'text') {
   await supabase.from('entries').insert({
     user_id: userId,
     content,
     emotional_score: emotionalScore,
     themes,
-    input_type: 'text',
+    input_type: inputType,
   })
   // Update preferred_hour based on when the user actually checks in
   updatePreferredHour(userId)

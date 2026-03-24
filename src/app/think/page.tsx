@@ -9,6 +9,26 @@ interface Message {
   content: string;
 }
 
+// SpeechRecognition is not fully in TypeScript's lib.dom — declare minimal types
+interface ISpeechRecognition {
+  continuous: boolean;
+  interimResults: boolean;
+  lang: string;
+  onstart: (() => void) | null;
+  onresult: ((e: { results: ArrayLike<ArrayLike<{ transcript: string }>> }) => void) | null;
+  onerror: ((e: { error: string }) => void) | null;
+  onend: (() => void) | null;
+  start(): void;
+  stop(): void;
+}
+type SpeechRecognitionCtor = new () => ISpeechRecognition;
+
+function getMicSupport(): SpeechRecognitionCtor | null {
+  if (typeof window === "undefined") return null;
+  const w = window as unknown as Record<string, SpeechRecognitionCtor | undefined>;
+  return w["SpeechRecognition"] ?? w["webkitSpeechRecognition"] ?? null;
+}
+
 export default function ThinkPage() {
   const router = useRouter();
   const [messages, setMessages] = useState<Message[]>([]);
@@ -16,13 +36,20 @@ export default function ThinkPage() {
   const [thinking, setThinking] = useState(false);
   const [error, setError] = useState("");
   const [ready, setReady] = useState(false);
+  const [isRecording, setIsRecording] = useState(false);
+  const [micError, setMicError] = useState("");
+  const [micSupported, setMicSupported] = useState(false);
 
-  const memoryRef = useRef<MonkMemory | null>(null);
-  const userIdRef = useRef<string | null>(null);
-  const bottomRef = useRef<HTMLDivElement>(null);
-  const inputRef  = useRef<HTMLTextAreaElement>(null);
+  const memoryRef   = useRef<MonkMemory | null>(null);
+  const userIdRef   = useRef<string | null>(null);
+  const bottomRef   = useRef<HTMLDivElement>(null);
+  const inputRef    = useRef<HTMLTextAreaElement>(null);
+  const recognitionRef = useRef<ISpeechRecognition | null>(null);
 
-  useEffect(() => { bootstrap(); }, []);
+  useEffect(() => {
+    setMicSupported(getMicSupport() !== null);
+    bootstrap();
+  }, []);
 
   async function bootstrap() {
     try {
@@ -34,7 +61,6 @@ export default function ThinkPage() {
       const storedVows  = JSON.parse(localStorage.getItem("monk_vows") ?? "[]") as string[];
       const storedAbout = localStorage.getItem("monk_about") ?? "";
       if (storedVows.some((v: string) => v.trim())) await saveVows(user.id, storedVows);
-      // Sync about + vows into monk_memory so Edge Functions can access them
       await updateMemory(user.id, {
         about: storedAbout,
         vows: storedVows.filter((v: string) => v.trim()),
@@ -55,8 +81,7 @@ export default function ThinkPage() {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages, thinking]);
 
-  const send = useCallback(async () => {
-    const text = input.trim();
+  const sendMessage = useCallback(async (text: string, inputType: "text" | "voice" = "text") => {
     if (!text || thinking) return;
 
     const userMsg: Message = { role: "user", content: text };
@@ -65,6 +90,7 @@ export default function ThinkPage() {
     setInput("");
     setThinking(true);
     setError("");
+    setMicError("");
 
     if (userIdRef.current) saveMessage(userIdRef.current, "user", text);
     if (inputRef.current) inputRef.current.style.height = "auto";
@@ -94,16 +120,21 @@ export default function ThinkPage() {
       const { reply } = await res.json();
       setMessages(prev => [...prev, { role: "assistant", content: reply }]);
       if (userIdRef.current) saveMessage(userIdRef.current, "assistant", reply);
-      processEntry(text);
+      processEntry(text, inputType);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Something went wrong");
     } finally {
       setThinking(false);
       setTimeout(() => inputRef.current?.focus(), 50);
     }
-  }, [input, messages, thinking]);
+  }, [messages, thinking]);
 
-  async function processEntry(userText: string) {
+  const send = useCallback(() => {
+    const text = input.trim();
+    if (text) sendMessage(text, "text");
+  }, [input, sendMessage]);
+
+  async function processEntry(userText: string, inputType: "text" | "voice" = "text") {
     const userId = userIdRef.current;
     if (!userId) return;
     const mem = memoryRef.current;
@@ -119,7 +150,7 @@ export default function ThinkPage() {
     });
     if (!res.ok) return;
     const { analysis, newSummary } = await res.json();
-    await saveEntry(userId, userText, analysis.emotional_score, analysis.themes);
+    await saveEntry(userId, userText, analysis.emotional_score, analysis.themes, inputType);
 
     const newArc    = [...(mem?.emotional_arc ?? []), analysis.emotional_score].slice(-30);
     const newThemes = mergeThemes(mem?.recurring_themes ?? {}, analysis.themes);
@@ -131,6 +162,42 @@ export default function ThinkPage() {
 
   function handleKeyDown(e: React.KeyboardEvent<HTMLTextAreaElement>) {
     if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); send(); }
+  }
+
+  function toggleVoice() {
+    if (isRecording) {
+      recognitionRef.current?.stop();
+      return;
+    }
+
+    const Ctor = getMicSupport();
+    if (!Ctor) return;
+
+    const rec = new Ctor();
+    rec.continuous = false;
+    rec.interimResults = false;
+    rec.lang = "en-US";
+
+    rec.onstart = () => setIsRecording(true);
+
+    rec.onresult = (e) => {
+      const transcript = (e.results[0]?.[0]?.transcript as string | undefined)?.trim();
+      if (transcript) sendMessage(transcript, "voice");
+    };
+
+    rec.onerror = (e) => {
+      if (e.error === "not-allowed") {
+        setMicError("Microphone access denied. Enable it in browser settings.");
+      } else if (e.error !== "no-speech" && e.error !== "aborted") {
+        setMicError("Could not capture audio. Try again.");
+      }
+      setIsRecording(false);
+    };
+
+    rec.onend = () => setIsRecording(false);
+
+    recognitionRef.current = rec;
+    rec.start();
   }
 
   return (
@@ -188,9 +255,9 @@ export default function ThinkPage() {
         <div ref={bottomRef} />
       </div>
 
-      {error && (
+      {(error || micError) && (
         <p className="flex-shrink-0 px-6 py-2 text-xs" style={{ color: "#a05050", background: "#fdf5f5" }}>
-          {error}
+          {error || micError}
         </p>
       )}
 
@@ -204,12 +271,57 @@ export default function ThinkPage() {
           value={input}
           onChange={e => setInput(e.target.value)}
           onKeyDown={handleKeyDown}
-          disabled={thinking || !ready}
+          disabled={thinking || !ready || isRecording}
           rows={1}
           className="flex-1 resize-none border-none outline-none bg-transparent leading-relaxed"
           style={{ color: "#1a1714", caretColor: "#8a7f74", fontFamily: "inherit", fontSize: "16px", maxHeight: "120px", overflow: "auto" }}
           onInput={e => { const el = e.currentTarget; el.style.height = "auto"; el.style.height = el.scrollHeight + "px"; }}
         />
+
+        {/* Mic button — only rendered if browser supports SpeechRecognition */}
+        {micSupported && (
+          <button
+            onClick={toggleVoice}
+            disabled={thinking || !ready}
+            aria-label={isRecording ? "Stop recording" : "Start voice input"}
+            style={{
+              width: 44,
+              height: 44,
+              borderRadius: "50%",
+              border: "1px solid rgba(0,0,0,0.15)",
+              background: isRecording ? "rgba(139,110,91,0.1)" : "none",
+              cursor: "pointer",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              flexShrink: 0,
+              opacity: (thinking || !ready) ? 0.3 : 1,
+              transition: "background 0.2s, opacity 0.2s",
+              position: "relative",
+            }}
+          >
+            {isRecording ? (
+              /* Pulsing dot while recording */
+              <span style={{
+                width: 8,
+                height: 8,
+                borderRadius: "50%",
+                background: "#8b6e5b",
+                display: "block",
+                animation: "micPulse 1.2s ease-in-out infinite",
+              }} />
+            ) : (
+              /* Mic icon */
+              <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+                <rect x="5" y="1" width="6" height="9" rx="3" stroke="rgba(0,0,0,0.4)" strokeWidth="1.4" fill="none" />
+                <path d="M2.5 8a5.5 5.5 0 0 0 11 0" stroke="rgba(0,0,0,0.4)" strokeWidth="1.4" strokeLinecap="round" fill="none" />
+                <line x1="8" y1="13.5" x2="8" y2="15" stroke="rgba(0,0,0,0.4)" strokeWidth="1.4" strokeLinecap="round" />
+              </svg>
+            )}
+          </button>
+        )}
+
+        {/* Send button */}
         <button
           onClick={send}
           disabled={thinking || !input.trim()}
@@ -223,6 +335,10 @@ export default function ThinkPage() {
         @keyframes monkPulse {
           0%, 80%, 100% { opacity: 0.3; transform: scale(0.85); }
           40%            { opacity: 1;   transform: scale(1); }
+        }
+        @keyframes micPulse {
+          0%, 100% { opacity: 0.5; transform: scale(0.85); }
+          50%      { opacity: 1;   transform: scale(1.2); }
         }
         ::-webkit-scrollbar { display: none; }
       `}</style>
