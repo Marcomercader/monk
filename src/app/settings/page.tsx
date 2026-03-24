@@ -33,8 +33,8 @@ export default function SettingsPage() {
     </p>
   );
 
-  const inputCls = "w-full bg-transparent border-b text-sm font-light focus:outline-none py-2";
-  const inputStyle = { borderColor: "#e0d5c5", color: "#2d2926", caretColor: "#2d2926" };
+  const inputCls = "w-full bg-transparent border-b font-light focus:outline-none py-2";
+  const inputStyle = { borderColor: "#e0d5c5", color: "#2d2926", caretColor: "#2d2926", fontSize: "16px" };
 
   return (
     <div className="w-full overflow-y-auto" style={{ minHeight: "100dvh", backgroundColor: "#ffffff" }}>
@@ -44,11 +44,11 @@ export default function SettingsPage() {
       >
         {/* Header */}
         <div className="flex items-center justify-between">
-          <button onClick={() => router.push("/")} className="text-xs tracking-widest lowercase cursor-pointer" style={{ color: "#bbb" }}>
+          <button onClick={() => router.push("/")} className="text-xs tracking-widest lowercase cursor-pointer py-3 -my-3 pr-4" style={{ color: "#bbb" }}>
             ← back
           </button>
           <p className="text-xs tracking-[0.3em] lowercase" style={{ color: "#bbb" }}>profile</p>
-          <button onClick={save} className="text-xs tracking-widest lowercase cursor-pointer transition-colors" style={{ color: saved ? "#7a8e7c" : "#8a7f74" }}>
+          <button onClick={save} className="text-xs tracking-widest lowercase cursor-pointer transition-colors py-3 -my-3 pl-4" style={{ color: saved ? "#7a8e7c" : "#8a7f74" }}>
             {saved ? "saved" : "save"}
           </button>
         </div>
@@ -84,7 +84,7 @@ export default function SettingsPage() {
             value={about}
             onChange={e => setAbout(e.target.value)}
             rows={5}
-            className="w-full bg-transparent border-b resize-none text-sm font-light focus:outline-none leading-relaxed py-2"
+            className="w-full bg-transparent border-b resize-none font-light focus:outline-none leading-relaxed py-2"
             style={{ ...inputStyle, borderColor: "#e0d5c5" }}
           />
         </div>

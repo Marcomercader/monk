@@ -142,7 +142,7 @@ export default function ThinkPage() {
       >
         <button
           onClick={() => router.push("/")}
-          className="text-xs tracking-widest lowercase transition-colors cursor-pointer"
+          className="text-xs tracking-widest lowercase transition-colors cursor-pointer py-3 -my-3 pr-4"
           style={{ color: "rgba(0,0,0,0.3)" }}
         >
           ← back
@@ -206,14 +206,14 @@ export default function ThinkPage() {
           onKeyDown={handleKeyDown}
           disabled={thinking || !ready}
           rows={1}
-          className="flex-1 resize-none border-none outline-none bg-transparent text-sm leading-relaxed"
-          style={{ color: "#1a1714", caretColor: "#8a7f74", fontFamily: "inherit", maxHeight: "120px", overflow: "auto" }}
+          className="flex-1 resize-none border-none outline-none bg-transparent leading-relaxed"
+          style={{ color: "#1a1714", caretColor: "#8a7f74", fontFamily: "inherit", fontSize: "16px", maxHeight: "120px", overflow: "auto" }}
           onInput={e => { const el = e.currentTarget; el.style.height = "auto"; el.style.height = el.scrollHeight + "px"; }}
         />
         <button
           onClick={send}
           disabled={thinking || !input.trim()}
-          style={{ width: 32, height: 32, borderRadius: "50%", border: "1px solid rgba(0,0,0,0.15)", background: "none", cursor: input.trim() ? "pointer" : "default", display: "flex", alignItems: "center", justifyContent: "center", fontSize: "13px", color: "rgba(0,0,0,0.4)", flexShrink: 0, opacity: input.trim() ? 1 : 0.3, transition: "opacity 0.2s" }}
+          style={{ width: 44, height: 44, borderRadius: "50%", border: "1px solid rgba(0,0,0,0.15)", background: "none", cursor: input.trim() ? "pointer" : "default", display: "flex", alignItems: "center", justifyContent: "center", fontSize: "14px", color: "rgba(0,0,0,0.4)", flexShrink: 0, opacity: input.trim() ? 1 : 0.3, transition: "opacity 0.2s" }}
         >
           ↑
         </button>

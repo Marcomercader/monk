@@ -180,7 +180,7 @@ export default function GoalsPage() {
             <motion.button
               whileTap={{ scale: 0.88 }}
               onClick={() => shiftDate(-1)}
-              className="w-7 h-7 flex items-center justify-center rounded-full border border-monk-border text-monk-muted hover:text-monk-text hover:border-monk-accent transition-all cursor-pointer text-sm"
+              className="w-11 h-11 flex items-center justify-center rounded-full border border-monk-border text-monk-muted hover:text-monk-text hover:border-monk-accent transition-all cursor-pointer text-base"
             >
               ‹
             </motion.button>
@@ -194,7 +194,7 @@ export default function GoalsPage() {
               whileTap={{ scale: 0.88 }}
               onClick={() => shiftDate(1)}
               disabled={isToday}
-              className="w-7 h-7 flex items-center justify-center rounded-full border border-monk-border text-monk-muted hover:text-monk-text hover:border-monk-accent transition-all cursor-pointer text-sm disabled:opacity-30 disabled:cursor-default"
+              className="w-11 h-11 flex items-center justify-center rounded-full border border-monk-border text-monk-muted hover:text-monk-text hover:border-monk-accent transition-all cursor-pointer text-base disabled:opacity-30 disabled:cursor-default"
             >
               ›
             </motion.button>
@@ -330,7 +330,7 @@ export default function GoalsPage() {
             onChange={(e) => { setNoteText(e.target.value); setNoteSaved(false); }}
             placeholder="How did this day go? What did you notice, feel, or learn…"
             rows={4}
-            className="w-full bg-monk-surface text-monk-text placeholder-monk-muted text-sm px-4 py-3 rounded-xl border border-monk-border focus:outline-none focus:border-monk-accent transition-colors resize-none leading-relaxed"
+            className="w-full bg-monk-surface text-monk-text placeholder-monk-muted text-base px-4 py-3 rounded-xl border border-monk-border focus:outline-none focus:border-monk-accent transition-colors resize-none leading-relaxed"
           />
           <div className="flex items-center justify-between mt-2">
             <AnimatePresence>
@@ -369,7 +369,7 @@ export default function GoalsPage() {
               onChange={(e) => setNewGoalName(e.target.value)}
               placeholder="Add a new goal…"
               maxLength={60}
-              className="flex-1 bg-monk-surface text-monk-text placeholder-monk-muted text-sm px-4 py-2.5 rounded-xl border border-monk-border focus:outline-none focus:border-monk-accent transition-colors"
+              className="flex-1 bg-monk-surface text-monk-text placeholder-monk-muted text-base px-4 py-2.5 rounded-xl border border-monk-border focus:outline-none focus:border-monk-accent transition-colors"
             />
             <motion.button
               whileTap={{ scale: 0.92 }}
@@ -412,7 +412,7 @@ export default function GoalsPage() {
                             value={editingName}
                             onChange={(e) => setEditingName(e.target.value)}
                             maxLength={60}
-                            className="flex-1 bg-monk-bg text-monk-text text-sm px-2 py-0.5 rounded-lg border border-monk-accent focus:outline-none"
+                            className="flex-1 bg-monk-bg text-monk-text text-base px-2 py-0.5 rounded-lg border border-monk-accent focus:outline-none"
                           />
                           <button type="submit" className="text-monk-accent text-sm cursor-pointer">✓</button>
                           <button type="button" onClick={() => setEditingGoalId(null)} className="text-monk-muted text-sm cursor-pointer">✕</button>
@@ -422,23 +422,23 @@ export default function GoalsPage() {
                       )}
 
                       {!isEditingThis && (
-                        <div className="flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                        <div className="flex items-center gap-2">
                           <button
                             onClick={() => toggleManageExpand(goal.id)}
-                            className="text-[10px] text-monk-muted hover:text-monk-text transition-colors cursor-pointer border border-monk-border rounded px-1.5 py-0.5"
+                            className="text-[10px] text-monk-muted hover:text-monk-text transition-colors cursor-pointer border border-monk-border rounded px-2 py-1"
                           >
                             habits {habits.length > 0 ? `(${habits.length})` : "+"}
                           </button>
                           <button
                             onClick={() => startEditGoal(goal.id, goal.name)}
-                            className="text-monk-muted hover:text-monk-text transition-colors cursor-pointer text-sm"
+                            className="text-monk-muted hover:text-monk-text transition-colors cursor-pointer text-base p-1"
                             aria-label="Edit goal"
                           >
                             ✎
                           </button>
                           <button
                             onClick={() => removeGoal(goal.id)}
-                            className="text-monk-muted hover:text-red-400 text-lg leading-none transition-colors cursor-pointer"
+                            className="text-monk-muted hover:text-red-400 text-xl leading-none transition-colors cursor-pointer p-1"
                           >
                             ×
                           </button>
@@ -457,12 +457,12 @@ export default function GoalsPage() {
                           className="border-t border-monk-border bg-monk-bg/40 px-4 py-3 flex flex-col gap-2"
                         >
                           {habits.map((habit) => (
-                            <div key={habit.id} className="group/habit flex items-center gap-2">
+                            <div key={habit.id} className="flex items-center gap-2">
                               <span className="w-1 h-1 rounded-full bg-monk-muted flex-shrink-0" />
                               <span className="flex-1 text-xs text-monk-text">{habit.name}</span>
                               <button
                                 onClick={() => removeHabitFromGoal(goal.id, habit.id)}
-                                className="opacity-0 group-hover/habit:opacity-100 text-monk-muted hover:text-red-400 text-base leading-none transition-all cursor-pointer"
+                                className="text-monk-muted hover:text-red-400 text-base leading-none transition-colors cursor-pointer p-1"
                               >
                                 ×
                               </button>
@@ -483,7 +483,7 @@ export default function GoalsPage() {
                               }
                               placeholder="Add a habit…"
                               maxLength={60}
-                              className="flex-1 bg-monk-surface text-monk-text placeholder-monk-muted text-xs px-3 py-1.5 rounded-lg border border-monk-border focus:outline-none focus:border-monk-accent transition-colors"
+                              className="flex-1 bg-monk-surface text-monk-text placeholder-monk-muted text-base px-3 py-1.5 rounded-lg border border-monk-border focus:outline-none focus:border-monk-accent transition-colors"
                             />
                             <motion.button
                               whileTap={{ scale: 0.92 }}

@@ -30,14 +30,15 @@ interface DotRatingProps {
 
 function DotRating({ rating, onRate, color }: DotRatingProps) {
   return (
-    <div className="flex items-center gap-1.5">
+    <div className="flex items-center gap-0.5">
       {[1, 2, 3, 4, 5].map((n) => (
         <motion.button
           key={n}
           whileTap={{ scale: 0.85 }}
           whileHover={{ scale: 1.15 }}
           onClick={() => onRate(n)}
-          className="cursor-pointer transition-transform"
+          className="cursor-pointer transition-transform flex items-center justify-center"
+          style={{ width: 36, height: 36 }}
           aria-label={`Rate ${n} out of 5`}
         >
           <svg width="18" height="18" viewBox="0 0 18 18">
