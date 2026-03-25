@@ -1,66 +1,421 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useRef, useEffect } from "react";
 import Link from "next/link";
 import { motion, AnimatePresence } from "framer-motion";
 import { useGoals } from "@/hooks/useGoals";
 import ThemeToggle from "@/components/ThemeToggle";
-import { GoalCategory } from "@/types";
+import { Goal, GoalCategory } from "@/types";
 
-const CATEGORY_CONFIG: Array<{
-  key: GoalCategory;
-  label: string;
-  max: number;
-  tracked?: boolean;
-  placeholder?: string;
-}> = [
-  { key: "physical",  label: "Physical",   max: 4 },
-  { key: "mental",    label: "Mental",     max: 4 },
-  { key: "financial", label: "Financial",  max: 4 },
-  { key: "spiritual", label: "Spiritual",  max: 4 },
-  { key: "social",    label: "Social",     max: 4 },
-  { key: "academics", label: "Academics",  max: 4 },
-  {
-    key: "bad_habit",
-    label: "Bad Habits",
-    max: 4,
-    tracked: true,
-    placeholder: "A habit you want to break…",
-  },
+const CATEGORY_LABELS: Record<GoalCategory, string> = {
+  main: "One Main Goal",
+  physical: "Physical",
+  mental: "Mental",
+  financial: "Financial",
+  spiritual: "Spiritual",
+  social: "Social",
+  academics: "Academics",
+  bad_habit: "Bad Habits",
+  uncategorized: "Other",
+};
+
+const CATEGORY_COLORS: Record<GoalCategory, string> = {
+  main: "#F0C870",
+  physical: "#7EC8A0",
+  mental: "#88B0E8",
+  financial: "#7EC8A0",
+  spiritual: "#C0A0E8",
+  social: "#F09880",
+  academics: "#88B0E8",
+  bad_habit: "#E88888",
+  uncategorized: "#9E9E9E",
+};
+
+const SECTIONS: Array<{ category: GoalCategory; max: number; note?: string }> = [
+  { category: "main", max: 1 },
+  { category: "physical", max: 4 },
+  { category: "mental", max: 4 },
+  { category: "financial", max: 4 },
+  { category: "spiritual", max: 4 },
+  { category: "social", max: 4 },
+  { category: "academics", max: 4 },
+  { category: "bad_habit", max: 4, note: "Monk tracks your progress on these" },
 ];
 
+function formatDateKey(d: Date): string {
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+}
+
+function parseDate(key: string): Date {
+  const [y, m, d] = key.split("-").map(Number);
+  return new Date(y, m - 1, d);
+}
+
+function displayDate(key: string): string {
+  return parseDate(key).toLocaleDateString("en-US", {
+    weekday: "long",
+    month: "long",
+    day: "numeric",
+  });
+}
+
+interface DotRatingProps {
+  rating: number | null;
+  onRate: (n: number) => void;
+  color: string;
+  size?: number;
+}
+
+function DotRating({ rating, onRate, color, size = 18 }: DotRatingProps) {
+  return (
+    <div className="flex items-center gap-2">
+      {[1, 2, 3, 4, 5].map((n) => (
+        <motion.button
+          key={n}
+          whileTap={{ scale: 0.8 }}
+          whileHover={{ scale: 1.15 }}
+          onClick={() => onRate(n)}
+          aria-label={`Rate ${n}`}
+          className="cursor-pointer"
+        >
+          <svg width={size} height={size} viewBox="0 0 20 20">
+            <circle
+              cx="10" cy="10" r="7"
+              fill={rating !== null && rating >= n ? color : "none"}
+              stroke={color}
+              strokeWidth="1.8"
+            />
+          </svg>
+        </motion.button>
+      ))}
+      <span className="text-xs text-monk-muted ml-1 w-8">
+        {rating !== null ? `${rating}/5` : "—"}
+      </span>
+    </div>
+  );
+}
+
+interface GoalRowProps {
+  goal: Goal;
+  color: string;
+  selectedDate: string;
+  getRatingForDate: (goalId: string, date: string) => number | null;
+  setRating: (goalId: string, date: string, rating: number) => void;
+  renameGoal: (goalId: string, name: string) => void;
+  removeGoal: (goalId: string) => void;
+  isMain?: boolean;
+}
+
+function GoalRow({
+  goal,
+  color,
+  selectedDate,
+  getRatingForDate,
+  setRating,
+  renameGoal,
+  removeGoal,
+  isMain = false,
+}: GoalRowProps) {
+  const [editing, setEditing] = useState(false);
+  const [editName, setEditName] = useState(goal.name);
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    if (editing) inputRef.current?.focus();
+  }, [editing]);
+
+  const confirmEdit = () => {
+    if (editName.trim()) renameGoal(goal.id, editName);
+    setEditing(false);
+  };
+
+  const rating = getRatingForDate(goal.id, selectedDate);
+
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: 4 }}
+      animate={{ opacity: 1, y: 0 }}
+      exit={{ opacity: 0, x: -8, height: 0 }}
+      transition={{ duration: 0.18 }}
+      className={`rounded-xl border bg-monk-surface overflow-hidden ${
+        isMain
+          ? "border-[#F0C870]/50 shadow-sm"
+          : "border-monk-border"
+      }`}
+    >
+      <div className={`flex flex-col gap-2 px-4 ${isMain ? "py-4" : "py-3"}`}>
+        {/* Name row */}
+        <div className="flex items-center gap-2">
+          <span
+            className={`rounded-full flex-shrink-0 ${isMain ? "w-3 h-3" : "w-2 h-2"}`}
+            style={{ background: color }}
+          />
+          {editing ? (
+            <form
+              className="flex-1 flex gap-2"
+              onSubmit={(e) => { e.preventDefault(); confirmEdit(); }}
+            >
+              <input
+                ref={inputRef}
+                value={editName}
+                onChange={(e) => setEditName(e.target.value)}
+                maxLength={80}
+                className="flex-1 bg-monk-bg text-monk-text text-sm px-2 py-0.5 rounded-lg border border-monk-accent focus:outline-none"
+              />
+              <button type="submit" className="text-monk-accent text-sm cursor-pointer">✓</button>
+              <button type="button" onClick={() => setEditing(false)} className="text-monk-muted text-sm cursor-pointer">✕</button>
+            </form>
+          ) : (
+            <span className={`flex-1 text-monk-text ${isMain ? "text-base font-medium" : "text-sm"}`}>
+              {goal.name}
+            </span>
+          )}
+          {!editing && (
+            <div className="flex items-center gap-1">
+              <button
+                onClick={() => { setEditName(goal.name); setEditing(true); }}
+                className="text-monk-muted hover:text-monk-text transition-colors cursor-pointer text-base p-1.5 min-w-[36px] min-h-[36px] flex items-center justify-center"
+                aria-label="Edit goal"
+              >
+                ✎
+              </button>
+              <button
+                onClick={() => removeGoal(goal.id)}
+                className="text-monk-muted hover:text-red-400 text-xl leading-none transition-colors cursor-pointer p-1.5 min-w-[36px] min-h-[36px] flex items-center justify-center"
+                aria-label="Remove goal"
+              >
+                ×
+              </button>
+            </div>
+          )}
+        </div>
+
+        {/* Rating */}
+        <DotRating
+          rating={rating}
+          onRate={(r) => setRating(goal.id, selectedDate, r)}
+          color={color}
+          size={isMain ? 20 : 16}
+        />
+
+        {/* Progress bar */}
+        <div className="h-0.5 bg-monk-border rounded-full overflow-hidden">
+          <div
+            className="h-full rounded-full transition-all duration-700"
+            style={{ width: rating ? `${(rating / 5) * 100}%` : "0%", background: color }}
+          />
+        </div>
+      </div>
+    </motion.div>
+  );
+}
+
+interface CategorySectionProps {
+  category: GoalCategory;
+  max: number;
+  note?: string;
+  goals: Goal[];
+  selectedDate: string;
+  getRatingForDate: (goalId: string, date: string) => number | null;
+  setRating: (goalId: string, date: string, rating: number) => void;
+  addGoal: (name: string, category: GoalCategory) => void;
+  renameGoal: (goalId: string, name: string) => void;
+  removeGoal: (goalId: string) => void;
+}
+
+function CategorySection({
+  category,
+  max,
+  note,
+  goals,
+  selectedDate,
+  getRatingForDate,
+  setRating,
+  addGoal,
+  renameGoal,
+  removeGoal,
+}: CategorySectionProps) {
+  const [adding, setAdding] = useState(false);
+  const [newName, setNewName] = useState("");
+  const addInputRef = useRef<HTMLInputElement>(null);
+  const color = CATEGORY_COLORS[category];
+  const label = CATEGORY_LABELS[category];
+  const isMain = category === "main";
+  const atCapacity = goals.length >= max;
+
+  useEffect(() => {
+    if (adding) addInputRef.current?.focus();
+  }, [adding]);
+
+  const handleAdd = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (newName.trim() && !atCapacity) {
+      addGoal(newName, category);
+      setNewName("");
+      setAdding(false);
+    }
+  };
+
+  return (
+    <section
+      className={`rounded-2xl border p-4 flex flex-col gap-3 ${
+        isMain
+          ? "border-[#F0C870]/40 bg-[#F0C870]/5"
+          : "border-monk-border bg-monk-surface/40"
+      }`}
+    >
+      {/* Section header */}
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-2">
+          <span
+            className={`rounded-full flex-shrink-0 ${isMain ? "w-3 h-3" : "w-2 h-2"}`}
+            style={{ background: color }}
+          />
+          <h2
+            className={`font-medium tracking-wide ${
+              isMain
+                ? "text-base text-[#F0C870]"
+                : "text-xs uppercase tracking-widest text-monk-muted"
+            }`}
+          >
+            {label}
+          </h2>
+          {!isMain && (
+            <span className="text-[10px] text-monk-muted opacity-50">
+              {goals.length}/{max}
+            </span>
+          )}
+        </div>
+        <motion.button
+          whileTap={{ scale: 0.9 }}
+          onClick={() => setAdding((v) => !v)}
+          disabled={atCapacity}
+          className={`text-xs px-3 py-1.5 rounded-lg border transition-colors cursor-pointer min-h-[36px] ${
+            atCapacity
+              ? "border-monk-border text-monk-muted opacity-30 cursor-not-allowed"
+              : isMain
+              ? "border-[#F0C870]/50 text-[#F0C870] hover:bg-[#F0C870]/10"
+              : "border-monk-border text-monk-muted hover:text-monk-text hover:border-monk-accent"
+          }`}
+          title={atCapacity ? `Max ${max} reached` : "Add goal"}
+        >
+          {adding ? "Cancel" : isMain && goals.length === 0 ? "Set goal" : "+ Add"}
+        </motion.button>
+      </div>
+
+      {/* Note (for bad habits) */}
+      {note && (
+        <p className="text-[11px] text-monk-muted italic opacity-70">{note}</p>
+      )}
+
+      {/* Add form */}
+      <AnimatePresence initial={false}>
+        {adding && (
+          <motion.form
+            initial={{ height: 0, opacity: 0 }}
+            animate={{ height: "auto", opacity: 1 }}
+            exit={{ height: 0, opacity: 0 }}
+            transition={{ duration: 0.18 }}
+            onSubmit={handleAdd}
+            className="flex gap-2 overflow-hidden"
+          >
+            <input
+              ref={addInputRef}
+              type="text"
+              value={newName}
+              onChange={(e) => setNewName(e.target.value)}
+              placeholder={isMain ? "Your single most important goal…" : "Add a goal…"}
+              maxLength={80}
+              className={`flex-1 bg-monk-bg text-monk-text placeholder-monk-muted text-sm px-3 py-2.5 rounded-xl border focus:outline-none transition-colors min-h-[44px] ${
+                isMain ? "border-[#F0C870]/40 focus:border-[#F0C870]" : "border-monk-border focus:border-monk-accent"
+              }`}
+            />
+            <motion.button
+              whileTap={{ scale: 0.92 }}
+              type="submit"
+              disabled={!newName.trim()}
+              className={`px-4 py-2.5 rounded-xl text-sm font-medium disabled:opacity-40 transition-opacity cursor-pointer min-h-[44px] ${
+                isMain
+                  ? "bg-[#F0C870] text-monk-bg"
+                  : "bg-monk-accent text-white"
+              }`}
+            >
+              +
+            </motion.button>
+          </motion.form>
+        )}
+      </AnimatePresence>
+
+      {/* Goals list */}
+      <AnimatePresence initial={false}>
+        {goals.length === 0 && !adding && (
+          <motion.p
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="text-xs text-monk-muted opacity-50 italic py-1"
+          >
+            {isMain ? "No main goal set yet" : "None yet"}
+          </motion.p>
+        )}
+        {goals.map((goal) => (
+          <GoalRow
+            key={goal.id}
+            goal={goal}
+            color={color}
+            selectedDate={selectedDate}
+            getRatingForDate={getRatingForDate}
+            setRating={setRating}
+            renameGoal={renameGoal}
+            removeGoal={removeGoal}
+            isMain={isMain}
+          />
+        ))}
+      </AnimatePresence>
+    </section>
+  );
+}
+
 export default function GoalsPage() {
-  const { goals, addGoal, removeGoal } = useGoals();
+  const {
+    goals, addGoal, removeGoal, renameGoal,
+    setRating, getRatingForDate,
+    setNote, getNoteForDate,
+  } = useGoals();
 
-  const [expanded, setExpanded] = useState<Set<GoalCategory>>(new Set());
-  const [inputs, setInputs] = useState<Partial<Record<GoalCategory, string>>>({});
-  const [mainInput, setMainInput] = useState("");
+  const todayKey = formatDateKey(new Date());
+  const [selectedDate, setSelectedDate] = useState(todayKey);
+  const [noteText, setNoteText] = useState("");
+  const [noteSaved, setNoteSaved] = useState(false);
 
-  const mainGoal = goals.find(g => g.category === "main");
-  const getGoals = (cat: GoalCategory) => goals.filter(g => g.category === cat);
+  const isToday = selectedDate === todayKey;
 
-  const toggle = (cat: GoalCategory) =>
-    setExpanded(prev => {
-      const next = new Set(prev);
-      next.has(cat) ? next.delete(cat) : next.add(cat);
-      return next;
-    });
+  useEffect(() => {
+    setNoteText(getNoteForDate(selectedDate));
+    setNoteSaved(false);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedDate]);
 
-  const handleAddMain = (e: React.FormEvent) => {
-    e.preventDefault();
-    const text = mainInput.trim();
-    if (!text || mainGoal) return;
-    addGoal(text, "main");
-    setMainInput("");
+  const shiftDate = (delta: number) => {
+    const d = parseDate(selectedDate);
+    d.setDate(d.getDate() + delta);
+    if (formatDateKey(d) <= todayKey) setSelectedDate(formatDateKey(d));
   };
 
-  const handleAdd = (e: React.FormEvent, cat: GoalCategory, max: number) => {
-    e.preventDefault();
-    const text = (inputs[cat] ?? "").trim();
-    if (!text || getGoals(cat).length >= max) return;
-    addGoal(text, cat);
-    setInputs(prev => ({ ...prev, [cat]: "" }));
+  const handleSaveNote = () => {
+    setNote(selectedDate, noteText);
+    setNoteSaved(true);
+    setTimeout(() => setNoteSaved(false), 2000);
   };
+
+  // Migrate any goals without a category to 'uncategorized'
+  const normalizedGoals = goals.map((g) => ({
+    ...g,
+    category: g.category ?? "uncategorized",
+  }));
+
+  const getGoalsForCategory = (category: GoalCategory) =>
+    normalizedGoals.filter((g) => g.category === category);
 
   return (
     <div className="min-h-screen flex flex-col bg-monk-bg text-monk-text">
@@ -84,168 +439,90 @@ export default function GoalsPage() {
         <ThemeToggle />
       </header>
 
-      <main className="flex-1 max-w-lg mx-auto w-full px-6 py-8 flex flex-col gap-6">
+      <main className="flex-1 max-w-lg mx-auto w-full px-4 py-6 flex flex-col gap-5">
 
-        {/* ── ONE MAIN GOAL ── */}
-        <section>
+        {/* ── DATE NAVIGATION ── */}
+        <div className="flex items-center gap-3">
+          <motion.button
+            whileTap={{ scale: 0.88 }}
+            onClick={() => shiftDate(-1)}
+            className="w-11 h-11 flex items-center justify-center rounded-full border border-monk-border text-monk-muted hover:text-monk-text hover:border-monk-accent transition-all cursor-pointer text-base flex-shrink-0"
+          >
+            ‹
+          </motion.button>
+          <div className="flex-1 min-w-0">
+            <p className="text-sm font-medium text-monk-text truncate">
+              {displayDate(selectedDate)}
+              {isToday && (
+                <span className="ml-2 text-xs text-monk-accent font-normal">today</span>
+              )}
+            </p>
+            <p className="text-[10px] text-monk-muted opacity-50">
+              Rate your progress for this day
+            </p>
+          </div>
+          <motion.button
+            whileTap={{ scale: 0.88 }}
+            onClick={() => shiftDate(1)}
+            disabled={isToday}
+            className="w-11 h-11 flex items-center justify-center rounded-full border border-monk-border text-monk-muted hover:text-monk-text hover:border-monk-accent transition-all cursor-pointer text-base flex-shrink-0 disabled:opacity-30 disabled:cursor-default"
+          >
+            ›
+          </motion.button>
+        </div>
+
+        {/* ── GOAL SECTIONS ── */}
+        {SECTIONS.map(({ category, max, note }) => (
+          <CategorySection
+            key={category}
+            category={category}
+            max={max}
+            note={note}
+            goals={getGoalsForCategory(category)}
+            selectedDate={selectedDate}
+            getRatingForDate={getRatingForDate}
+            setRating={setRating}
+            addGoal={addGoal}
+            renameGoal={renameGoal}
+            removeGoal={removeGoal}
+          />
+        ))}
+
+        {/* ── NOTES ── */}
+        <section className="border-t border-monk-border pt-5">
           <h2 className="text-xs font-semibold tracking-widest uppercase text-monk-muted mb-3">
-            one main goal
+            Notes for this day
           </h2>
-
-          {mainGoal ? (
-            <motion.div
-              initial={{ opacity: 0, y: 4 }}
-              animate={{ opacity: 1, y: 0 }}
-              className="flex items-center justify-between px-4 py-3.5 rounded-xl border border-monk-border bg-monk-surface"
+          <textarea
+            value={noteText}
+            onChange={(e) => { setNoteText(e.target.value); setNoteSaved(false); }}
+            placeholder="How did this day go? What did you notice, feel, or learn…"
+            rows={4}
+            className="w-full bg-monk-surface text-monk-text placeholder-monk-muted text-base px-4 py-3 rounded-xl border border-monk-border focus:outline-none focus:border-monk-accent transition-colors resize-none leading-relaxed"
+          />
+          <div className="flex items-center justify-between mt-2">
+            <AnimatePresence>
+              {noteSaved && (
+                <motion.span
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  exit={{ opacity: 0 }}
+                  className="text-xs text-monk-accent"
+                >
+                  saved
+                </motion.span>
+              )}
+            </AnimatePresence>
+            <motion.button
+              whileTap={{ scale: 0.95 }}
+              onClick={handleSaveNote}
+              className="ml-auto text-xs px-4 py-2 rounded-lg border border-monk-border text-monk-muted hover:text-monk-text hover:border-monk-accent transition-colors cursor-pointer min-h-[36px]"
             >
-              <span className="text-base text-monk-text leading-snug">{mainGoal.name}</span>
-              <button
-                onClick={() => removeGoal(mainGoal.id)}
-                className="text-monk-muted hover:text-red-400 text-xl leading-none transition-colors cursor-pointer ml-4 flex-shrink-0"
-                aria-label="Remove main goal"
-              >
-                ×
-              </button>
-            </motion.div>
-          ) : (
-            <form onSubmit={handleAddMain} className="flex gap-2">
-              <input
-                value={mainInput}
-                onChange={e => setMainInput(e.target.value)}
-                placeholder="What is your north star right now?"
-                maxLength={80}
-                className="flex-1 bg-monk-surface text-monk-text placeholder-monk-muted px-4 py-3 rounded-xl border border-monk-border focus:outline-none focus:border-monk-accent transition-colors"
-                style={{ fontSize: "16px" }}
-              />
-              <motion.button
-                whileTap={{ scale: 0.95 }}
-                type="submit"
-                disabled={!mainInput.trim()}
-                className="px-4 py-3 bg-monk-accent text-white rounded-xl text-sm disabled:opacity-40 cursor-pointer"
-              >
-                set
-              </motion.button>
-            </form>
-          )}
+              Save note
+            </motion.button>
+          </div>
         </section>
 
-        {/* ── CATEGORY SECTIONS ── */}
-        <div className="flex flex-col">
-          {CATEGORY_CONFIG.map(({ key, label, max, tracked, placeholder }, idx) => {
-            const catGoals = getGoals(key);
-            const isOpen   = expanded.has(key);
-            const atMax    = catGoals.length >= max;
-            const inputVal = inputs[key] ?? "";
-            const isLast   = idx === CATEGORY_CONFIG.length - 1;
-
-            return (
-              <div key={key}>
-                {/* Section header */}
-                <button
-                  onClick={() => toggle(key)}
-                  className="w-full flex items-center justify-between py-3.5 cursor-pointer"
-                >
-                  <div className="flex items-center gap-2.5">
-                    <span className="text-xs font-semibold tracking-widest uppercase text-monk-muted">
-                      {label}
-                    </span>
-                    {tracked && (
-                      <span
-                        className="text-[9px] tracking-widest uppercase border rounded px-1.5 py-0.5"
-                        style={{ color: "var(--monk-accent)", borderColor: "var(--monk-accent)", opacity: 0.7 }}
-                      >
-                        tracked
-                      </span>
-                    )}
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <span className="text-xs text-monk-muted opacity-50">
-                      {catGoals.length}/{max}
-                    </span>
-                    <motion.span
-                      animate={{ rotate: isOpen ? 90 : 0 }}
-                      transition={{ duration: 0.18 }}
-                      className="text-monk-muted text-base leading-none"
-                    >
-                      ›
-                    </motion.span>
-                  </div>
-                </button>
-
-                {/* Collapsible content */}
-                <AnimatePresence initial={false}>
-                  {isOpen && (
-                    <motion.div
-                      initial={{ height: 0, opacity: 0 }}
-                      animate={{ height: "auto", opacity: 1 }}
-                      exit={{ height: 0, opacity: 0 }}
-                      transition={{ duration: 0.2 }}
-                      className="overflow-hidden"
-                    >
-                      <div className="flex flex-col gap-2 pb-4">
-                        <AnimatePresence>
-                          {catGoals.map(goal => (
-                            <motion.div
-                              key={goal.id}
-                              initial={{ opacity: 0, x: -6 }}
-                              animate={{ opacity: 1, x: 0 }}
-                              exit={{ opacity: 0, x: -6, height: 0 }}
-                              transition={{ duration: 0.15 }}
-                              className="flex items-center justify-between px-4 py-2.5 rounded-xl border border-monk-border bg-monk-surface"
-                            >
-                              <span className="text-sm text-monk-text">{goal.name}</span>
-                              <button
-                                onClick={() => removeGoal(goal.id)}
-                                className="text-monk-muted hover:text-red-400 text-xl leading-none transition-colors cursor-pointer ml-3 flex-shrink-0"
-                                aria-label={`Remove ${goal.name}`}
-                              >
-                                ×
-                              </button>
-                            </motion.div>
-                          ))}
-                        </AnimatePresence>
-
-                        {!atMax ? (
-                          <form
-                            onSubmit={e => handleAdd(e, key, max)}
-                            className="flex gap-2"
-                          >
-                            <input
-                              value={inputVal}
-                              onChange={e =>
-                                setInputs(prev => ({ ...prev, [key]: e.target.value }))
-                              }
-                              placeholder={placeholder ?? "Add a goal…"}
-                              maxLength={60}
-                              className="flex-1 bg-monk-surface text-monk-text placeholder-monk-muted px-3 py-2.5 rounded-xl border border-monk-border focus:outline-none focus:border-monk-accent transition-colors"
-                              style={{ fontSize: "16px" }}
-                            />
-                            <motion.button
-                              whileTap={{ scale: 0.92 }}
-                              type="submit"
-                              disabled={!inputVal.trim()}
-                              className="px-3 py-2.5 bg-monk-accent text-white rounded-xl text-sm disabled:opacity-40 cursor-pointer"
-                            >
-                              +
-                            </motion.button>
-                          </form>
-                        ) : (
-                          <p className="text-[11px] text-monk-muted opacity-50 px-1">
-                            Max {max} reached
-                          </p>
-                        )}
-                      </div>
-                    </motion.div>
-                  )}
-                </AnimatePresence>
-
-                {!isLast && (
-                  <div className="border-b border-monk-border/40" />
-                )}
-              </div>
-            );
-          })}
-        </div>
       </main>
     </div>
   );

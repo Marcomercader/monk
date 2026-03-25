@@ -11,7 +11,7 @@ export function useGoals() {
 
   // ── Goal CRUD ──────────────────────────────────────────────
 
-  const addGoal = (name: string, category: GoalCategory = 'physical') => {
+  const addGoal = (name: string, category: GoalCategory = 'uncategorized') => {
     const trimmed = name.trim();
     if (!trimmed) return;
     const goal: Goal = {
@@ -20,8 +20,15 @@ export function useGoals() {
       createdAt: new Date().toISOString(),
       habits: [],
       category,
+      active: true,
     };
     setGoals((prev) => [...prev, goal]);
+  };
+
+  const setCategoryForGoal = (goalId: string, category: GoalCategory) => {
+    setGoals((prev) =>
+      prev.map((g) => (g.id === goalId ? { ...g, category } : g))
+    );
   };
 
   const removeGoal = (id: string) => {
@@ -193,6 +200,7 @@ export function useGoals() {
     addGoal,
     removeGoal,
     renameGoal,
+    setCategoryForGoal,
     addHabitToGoal,
     removeHabitFromGoal,
     setRating,

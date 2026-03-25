@@ -1,3 +1,14 @@
+export type GoalCategory =
+  | 'main'
+  | 'physical'
+  | 'mental'
+  | 'financial'
+  | 'spiritual'
+  | 'social'
+  | 'academics'
+  | 'bad_habit'
+  | 'uncategorized';
+
 export interface Habit {
   id: string;
   name: string;
@@ -9,22 +20,13 @@ export interface GoalHabit {
   name: string;
 }
 
-export type GoalCategory =
-  | 'main'
-  | 'physical'
-  | 'mental'
-  | 'financial'
-  | 'spiritual'
-  | 'social'
-  | 'academics'
-  | 'bad_habit';
-
 export interface Goal {
   id: string;
   name: string;
   createdAt: string;
   habits: GoalHabit[];
   category: GoalCategory;
+  active?: boolean;
 }
 
 export interface DayRating {
