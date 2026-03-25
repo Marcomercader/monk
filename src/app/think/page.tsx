@@ -46,7 +46,9 @@ export default function ThinkPage() {
   const inputRef       = useRef<HTMLTextAreaElement>(null);
   const recognitionRef = useRef<ISpeechRecognition | null>(null);
   // Prior messages loaded for API context only — not rendered in the UI
-  const priorRef       = useRef<Message[]>([]);
+  const priorRef             = useRef<Message[]>([]);
+  // Tracks whether we've incremented conversation_count for this session
+  const conversationStarted  = useRef(false);
 
   useEffect(() => {
     setMicSupported(getMicSupport() !== null);
@@ -96,6 +98,16 @@ export default function ThinkPage() {
 
     if (userIdRef.current) saveMessage(userIdRef.current, "user", text);
     if (inputRef.current) inputRef.current.style.height = "auto";
+
+    // Increment conversation_count once per session on the first message sent
+    if (!conversationStarted.current && userIdRef.current && memoryRef.current) {
+      conversationStarted.current = true;
+      const newCount = (memoryRef.current.conversation_count ?? 0) + 1;
+      const countUpdates: Partial<MonkMemory> = { conversation_count: newCount };
+      if (newCount >= 3) countUpdates.vow_prompt_ready = true;
+      updateMemory(userIdRef.current, countUpdates);
+      memoryRef.current = { ...memoryRef.current, ...countUpdates };
+    }
 
     try {
       const mem   = memoryRef.current;

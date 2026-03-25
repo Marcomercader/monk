@@ -12,6 +12,8 @@ export interface MonkMemory {
   avatar_state: AvatarState
   about: string
   vows: string[]
+  conversation_count: number
+  vow_prompt_ready: boolean
   updated_at: string
 }
 

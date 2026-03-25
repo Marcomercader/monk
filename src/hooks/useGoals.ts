@@ -1,7 +1,7 @@
 "use client";
 
 import { useLocalStorage } from "./useLocalStorage";
-import { Goal, GoalHabit, DayRating, HabitRating, DayNote } from "@/types";
+import { Goal, GoalCategory, GoalHabit, DayRating, HabitRating, DayNote } from "@/types";
 
 export function useGoals() {
   const [goals, setGoals] = useLocalStorage<Goal[]>("monk_goals_v2", []);
@@ -11,7 +11,7 @@ export function useGoals() {
 
   // ── Goal CRUD ──────────────────────────────────────────────
 
-  const addGoal = (name: string) => {
+  const addGoal = (name: string, category: GoalCategory = 'physical') => {
     const trimmed = name.trim();
     if (!trimmed) return;
     const goal: Goal = {
@@ -19,6 +19,7 @@ export function useGoals() {
       name: trimmed,
       createdAt: new Date().toISOString(),
       habits: [],
+      category,
     };
     setGoals((prev) => [...prev, goal]);
   };
