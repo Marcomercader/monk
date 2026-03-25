@@ -5,8 +5,42 @@ import Link from "next/link";
 import { motion, AnimatePresence } from "framer-motion";
 import { useGoals } from "@/hooks/useGoals";
 import ThemeToggle from "@/components/ThemeToggle";
+import { Goal, GoalCategory } from "@/types";
 
-const GOAL_COLORS = ["#7EC8A0", "#F0C870", "#88B0E8", "#F09880", "#C0A0E8"];
+const CATEGORY_LABELS: Record<GoalCategory, string> = {
+  main: "One Main Goal",
+  physical: "Physical",
+  mental: "Mental",
+  financial: "Financial",
+  spiritual: "Spiritual",
+  social: "Social",
+  academics: "Academics",
+  bad_habit: "Bad Habits",
+  uncategorized: "Other",
+};
+
+const CATEGORY_COLORS: Record<GoalCategory, string> = {
+  main: "#F0C870",
+  physical: "#7EC8A0",
+  mental: "#88B0E8",
+  financial: "#7EC8A0",
+  spiritual: "#C0A0E8",
+  social: "#F09880",
+  academics: "#88B0E8",
+  bad_habit: "#E88888",
+  uncategorized: "#9E9E9E",
+};
+
+const SECTIONS: Array<{ category: GoalCategory; max: number; note?: string }> = [
+  { category: "main", max: 1 },
+  { category: "physical", max: 4 },
+  { category: "mental", max: 4 },
+  { category: "financial", max: 4 },
+  { category: "spiritual", max: 4 },
+  { category: "social", max: 4 },
+  { category: "academics", max: 4 },
+  { category: "bad_habit", max: 4, note: "Monk tracks your progress on these" },
+];
 
 function formatDateKey(d: Date): string {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
@@ -32,14 +66,14 @@ interface DotRatingProps {
   size?: number;
 }
 
-function DotRating({ rating, onRate, color, size = 20 }: DotRatingProps) {
+function DotRating({ rating, onRate, color, size = 18 }: DotRatingProps) {
   return (
     <div className="flex items-center gap-2">
       {[1, 2, 3, 4, 5].map((n) => (
         <motion.button
           key={n}
           whileTap={{ scale: 0.8 }}
-          whileHover={{ scale: 1.2 }}
+          whileHover={{ scale: 1.15 }}
           onClick={() => onRate(n)}
           aria-label={`Rate ${n}`}
           className="cursor-pointer"
@@ -61,12 +95,291 @@ function DotRating({ rating, onRate, color, size = 20 }: DotRatingProps) {
   );
 }
 
+interface GoalRowProps {
+  goal: Goal;
+  color: string;
+  selectedDate: string;
+  getRatingForDate: (goalId: string, date: string) => number | null;
+  setRating: (goalId: string, date: string, rating: number) => void;
+  renameGoal: (goalId: string, name: string) => void;
+  removeGoal: (goalId: string) => void;
+  isMain?: boolean;
+}
+
+function GoalRow({
+  goal,
+  color,
+  selectedDate,
+  getRatingForDate,
+  setRating,
+  renameGoal,
+  removeGoal,
+  isMain = false,
+}: GoalRowProps) {
+  const [editing, setEditing] = useState(false);
+  const [editName, setEditName] = useState(goal.name);
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    if (editing) inputRef.current?.focus();
+  }, [editing]);
+
+  const confirmEdit = () => {
+    if (editName.trim()) renameGoal(goal.id, editName);
+    setEditing(false);
+  };
+
+  const rating = getRatingForDate(goal.id, selectedDate);
+
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: 4 }}
+      animate={{ opacity: 1, y: 0 }}
+      exit={{ opacity: 0, x: -8, height: 0 }}
+      transition={{ duration: 0.18 }}
+      className={`rounded-xl border bg-monk-surface overflow-hidden ${
+        isMain
+          ? "border-[#F0C870]/50 shadow-sm"
+          : "border-monk-border"
+      }`}
+    >
+      <div className={`flex flex-col gap-2 px-4 ${isMain ? "py-4" : "py-3"}`}>
+        {/* Name row */}
+        <div className="flex items-center gap-2">
+          <span
+            className={`rounded-full flex-shrink-0 ${isMain ? "w-3 h-3" : "w-2 h-2"}`}
+            style={{ background: color }}
+          />
+          {editing ? (
+            <form
+              className="flex-1 flex gap-2"
+              onSubmit={(e) => { e.preventDefault(); confirmEdit(); }}
+            >
+              <input
+                ref={inputRef}
+                value={editName}
+                onChange={(e) => setEditName(e.target.value)}
+                maxLength={80}
+                className="flex-1 bg-monk-bg text-monk-text text-sm px-2 py-0.5 rounded-lg border border-monk-accent focus:outline-none"
+              />
+              <button type="submit" className="text-monk-accent text-sm cursor-pointer">✓</button>
+              <button type="button" onClick={() => setEditing(false)} className="text-monk-muted text-sm cursor-pointer">✕</button>
+            </form>
+          ) : (
+            <span className={`flex-1 text-monk-text ${isMain ? "text-base font-medium" : "text-sm"}`}>
+              {goal.name}
+            </span>
+          )}
+          {!editing && (
+            <div className="flex items-center gap-1">
+              <button
+                onClick={() => { setEditName(goal.name); setEditing(true); }}
+                className="text-monk-muted hover:text-monk-text transition-colors cursor-pointer text-base p-1.5 min-w-[36px] min-h-[36px] flex items-center justify-center"
+                aria-label="Edit goal"
+              >
+                ✎
+              </button>
+              <button
+                onClick={() => removeGoal(goal.id)}
+                className="text-monk-muted hover:text-red-400 text-xl leading-none transition-colors cursor-pointer p-1.5 min-w-[36px] min-h-[36px] flex items-center justify-center"
+                aria-label="Remove goal"
+              >
+                ×
+              </button>
+            </div>
+          )}
+        </div>
+
+        {/* Rating */}
+        <DotRating
+          rating={rating}
+          onRate={(r) => setRating(goal.id, selectedDate, r)}
+          color={color}
+          size={isMain ? 20 : 16}
+        />
+
+        {/* Progress bar */}
+        <div className="h-0.5 bg-monk-border rounded-full overflow-hidden">
+          <div
+            className="h-full rounded-full transition-all duration-700"
+            style={{ width: rating ? `${(rating / 5) * 100}%` : "0%", background: color }}
+          />
+        </div>
+      </div>
+    </motion.div>
+  );
+}
+
+interface CategorySectionProps {
+  category: GoalCategory;
+  max: number;
+  note?: string;
+  goals: Goal[];
+  selectedDate: string;
+  getRatingForDate: (goalId: string, date: string) => number | null;
+  setRating: (goalId: string, date: string, rating: number) => void;
+  addGoal: (name: string, category: GoalCategory) => void;
+  renameGoal: (goalId: string, name: string) => void;
+  removeGoal: (goalId: string) => void;
+}
+
+function CategorySection({
+  category,
+  max,
+  note,
+  goals,
+  selectedDate,
+  getRatingForDate,
+  setRating,
+  addGoal,
+  renameGoal,
+  removeGoal,
+}: CategorySectionProps) {
+  const [adding, setAdding] = useState(false);
+  const [newName, setNewName] = useState("");
+  const addInputRef = useRef<HTMLInputElement>(null);
+  const color = CATEGORY_COLORS[category];
+  const label = CATEGORY_LABELS[category];
+  const isMain = category === "main";
+  const atCapacity = goals.length >= max;
+
+  useEffect(() => {
+    if (adding) addInputRef.current?.focus();
+  }, [adding]);
+
+  const handleAdd = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (newName.trim() && !atCapacity) {
+      addGoal(newName, category);
+      setNewName("");
+      setAdding(false);
+    }
+  };
+
+  return (
+    <section
+      className={`rounded-2xl border p-4 flex flex-col gap-3 ${
+        isMain
+          ? "border-[#F0C870]/40 bg-[#F0C870]/5"
+          : "border-monk-border bg-monk-surface/40"
+      }`}
+    >
+      {/* Section header */}
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-2">
+          <span
+            className={`rounded-full flex-shrink-0 ${isMain ? "w-3 h-3" : "w-2 h-2"}`}
+            style={{ background: color }}
+          />
+          <h2
+            className={`font-medium tracking-wide ${
+              isMain
+                ? "text-base text-[#F0C870]"
+                : "text-xs uppercase tracking-widest text-monk-muted"
+            }`}
+          >
+            {label}
+          </h2>
+          {!isMain && (
+            <span className="text-[10px] text-monk-muted opacity-50">
+              {goals.length}/{max}
+            </span>
+          )}
+        </div>
+        <motion.button
+          whileTap={{ scale: 0.9 }}
+          onClick={() => setAdding((v) => !v)}
+          disabled={atCapacity}
+          className={`text-xs px-3 py-1.5 rounded-lg border transition-colors cursor-pointer min-h-[36px] ${
+            atCapacity
+              ? "border-monk-border text-monk-muted opacity-30 cursor-not-allowed"
+              : isMain
+              ? "border-[#F0C870]/50 text-[#F0C870] hover:bg-[#F0C870]/10"
+              : "border-monk-border text-monk-muted hover:text-monk-text hover:border-monk-accent"
+          }`}
+          title={atCapacity ? `Max ${max} reached` : "Add goal"}
+        >
+          {adding ? "Cancel" : isMain && goals.length === 0 ? "Set goal" : "+ Add"}
+        </motion.button>
+      </div>
+
+      {/* Note (for bad habits) */}
+      {note && (
+        <p className="text-[11px] text-monk-muted italic opacity-70">{note}</p>
+      )}
+
+      {/* Add form */}
+      <AnimatePresence initial={false}>
+        {adding && (
+          <motion.form
+            initial={{ height: 0, opacity: 0 }}
+            animate={{ height: "auto", opacity: 1 }}
+            exit={{ height: 0, opacity: 0 }}
+            transition={{ duration: 0.18 }}
+            onSubmit={handleAdd}
+            className="flex gap-2 overflow-hidden"
+          >
+            <input
+              ref={addInputRef}
+              type="text"
+              value={newName}
+              onChange={(e) => setNewName(e.target.value)}
+              placeholder={isMain ? "Your single most important goal…" : "Add a goal…"}
+              maxLength={80}
+              className={`flex-1 bg-monk-bg text-monk-text placeholder-monk-muted text-sm px-3 py-2.5 rounded-xl border focus:outline-none transition-colors min-h-[44px] ${
+                isMain ? "border-[#F0C870]/40 focus:border-[#F0C870]" : "border-monk-border focus:border-monk-accent"
+              }`}
+            />
+            <motion.button
+              whileTap={{ scale: 0.92 }}
+              type="submit"
+              disabled={!newName.trim()}
+              className={`px-4 py-2.5 rounded-xl text-sm font-medium disabled:opacity-40 transition-opacity cursor-pointer min-h-[44px] ${
+                isMain
+                  ? "bg-[#F0C870] text-monk-bg"
+                  : "bg-monk-accent text-white"
+              }`}
+            >
+              +
+            </motion.button>
+          </motion.form>
+        )}
+      </AnimatePresence>
+
+      {/* Goals list */}
+      <AnimatePresence initial={false}>
+        {goals.length === 0 && !adding && (
+          <motion.p
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="text-xs text-monk-muted opacity-50 italic py-1"
+          >
+            {isMain ? "No main goal set yet" : "None yet"}
+          </motion.p>
+        )}
+        {goals.map((goal) => (
+          <GoalRow
+            key={goal.id}
+            goal={goal}
+            color={color}
+            selectedDate={selectedDate}
+            getRatingForDate={getRatingForDate}
+            setRating={setRating}
+            renameGoal={renameGoal}
+            removeGoal={removeGoal}
+            isMain={isMain}
+          />
+        ))}
+      </AnimatePresence>
+    </section>
+  );
+}
+
 export default function GoalsPage() {
   const {
     goals, addGoal, removeGoal, renameGoal,
-    addHabitToGoal, removeHabitFromGoal,
-    setRating, getRatingForDate, getLongTermProgress,
-    setHabitRating, getHabitRatingForDate, getHabitRatingsForDate,
+    setRating, getRatingForDate,
     setNote, getNoteForDate,
   } = useGoals();
 
@@ -74,27 +387,14 @@ export default function GoalsPage() {
   const [selectedDate, setSelectedDate] = useState(todayKey);
   const [noteText, setNoteText] = useState("");
   const [noteSaved, setNoteSaved] = useState(false);
-  const [newGoalName, setNewGoalName] = useState("");
 
-  const [expandedHabits, setExpandedHabits] = useState<Set<string>>(new Set());
-  const [editingGoalId, setEditingGoalId] = useState<string | null>(null);
-  const [editingName, setEditingName] = useState("");
-  const [newHabitInputs, setNewHabitInputs] = useState<Record<string, string>>({});
-  const [expandedManage, setExpandedManage] = useState<Set<string>>(new Set());
-
-  const editInputRef = useRef<HTMLInputElement>(null);
+  const isToday = selectedDate === todayKey;
 
   useEffect(() => {
     setNoteText(getNoteForDate(selectedDate));
     setNoteSaved(false);
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedDate]);
-
-  useEffect(() => {
-    if (editingGoalId) editInputRef.current?.focus();
-  }, [editingGoalId]);
-
-  const isToday = selectedDate === todayKey;
 
   const shiftDate = (delta: number) => {
     const d = parseDate(selectedDate);
@@ -108,47 +408,14 @@ export default function GoalsPage() {
     setTimeout(() => setNoteSaved(false), 2000);
   };
 
-  const handleAddGoal = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (newGoalName.trim()) {
-      addGoal(newGoalName);
-      setNewGoalName("");
-    }
-  };
+  // Migrate any goals without a category to 'uncategorized'
+  const normalizedGoals = goals.map((g) => ({
+    ...g,
+    category: g.category ?? "uncategorized",
+  }));
 
-  const toggleHabitExpand = (goalId: string) => {
-    setExpandedHabits((prev) => {
-      const next = new Set(prev);
-      next.has(goalId) ? next.delete(goalId) : next.add(goalId);
-      return next;
-    });
-  };
-
-  const toggleManageExpand = (goalId: string) => {
-    setExpandedManage((prev) => {
-      const next = new Set(prev);
-      next.has(goalId) ? next.delete(goalId) : next.add(goalId);
-      return next;
-    });
-  };
-
-  const startEditGoal = (goalId: string, currentName: string) => {
-    setEditingGoalId(goalId);
-    setEditingName(currentName);
-  };
-
-  const confirmEditGoal = () => {
-    if (editingGoalId) renameGoal(editingGoalId, editingName);
-    setEditingGoalId(null);
-  };
-
-  const handleAddHabit = (goalId: string) => {
-    const name = newHabitInputs[goalId] ?? "";
-    if (name.trim()) {
-      addHabitToGoal(goalId, name);
-      setNewHabitInputs((prev) => ({ ...prev, [goalId]: "" }));
-    }
-  };
+  const getGoalsForCategory = (category: GoalCategory) =>
+    normalizedGoals.filter((g) => g.category === category);
 
   return (
     <div className="min-h-screen flex flex-col bg-monk-bg text-monk-text">
@@ -172,156 +439,57 @@ export default function GoalsPage() {
         <ThemeToggle />
       </header>
 
-      <main className="flex-1 max-w-lg mx-auto w-full px-6 py-8 flex flex-col gap-8">
+      <main className="flex-1 max-w-lg mx-auto w-full px-4 py-6 flex flex-col gap-5">
 
         {/* ── DATE NAVIGATION ── */}
-        <div>
-          <div className="flex items-center gap-3 mb-1">
-            <motion.button
-              whileTap={{ scale: 0.88 }}
-              onClick={() => shiftDate(-1)}
-              className="w-11 h-11 flex items-center justify-center rounded-full border border-monk-border text-monk-muted hover:text-monk-text hover:border-monk-accent transition-all cursor-pointer text-base"
-            >
-              ‹
-            </motion.button>
-            <p className="text-sm font-medium text-monk-text">
+        <div className="flex items-center gap-3">
+          <motion.button
+            whileTap={{ scale: 0.88 }}
+            onClick={() => shiftDate(-1)}
+            className="w-11 h-11 flex items-center justify-center rounded-full border border-monk-border text-monk-muted hover:text-monk-text hover:border-monk-accent transition-all cursor-pointer text-base flex-shrink-0"
+          >
+            ‹
+          </motion.button>
+          <div className="flex-1 min-w-0">
+            <p className="text-sm font-medium text-monk-text truncate">
               {displayDate(selectedDate)}
               {isToday && (
                 <span className="ml-2 text-xs text-monk-accent font-normal">today</span>
               )}
             </p>
-            <motion.button
-              whileTap={{ scale: 0.88 }}
-              onClick={() => shiftDate(1)}
-              disabled={isToday}
-              className="w-11 h-11 flex items-center justify-center rounded-full border border-monk-border text-monk-muted hover:text-monk-text hover:border-monk-accent transition-all cursor-pointer text-base disabled:opacity-30 disabled:cursor-default"
-            >
-              ›
-            </motion.button>
+            <p className="text-[10px] text-monk-muted opacity-50">
+              Rate your progress for this day
+            </p>
           </div>
-          <p className="text-xs text-monk-muted opacity-60">
-            Navigate to any past date to review or update your ratings
-          </p>
+          <motion.button
+            whileTap={{ scale: 0.88 }}
+            onClick={() => shiftDate(1)}
+            disabled={isToday}
+            className="w-11 h-11 flex items-center justify-center rounded-full border border-monk-border text-monk-muted hover:text-monk-text hover:border-monk-accent transition-all cursor-pointer text-base flex-shrink-0 disabled:opacity-30 disabled:cursor-default"
+          >
+            ›
+          </motion.button>
         </div>
 
-        {/* ── RATE GOALS ── */}
-        <section>
-          <h2 className="text-xs font-semibold tracking-widest uppercase text-monk-muted mb-4">
-            Rate your progress
-          </h2>
-
-          {goals.length === 0 ? (
-            <p className="text-sm text-monk-muted italic opacity-60 py-4 text-center">
-              Add goals below to start tracking
-            </p>
-          ) : (
-            <div className="space-y-3">
-              {goals.map((goal, gi) => {
-                const color = GOAL_COLORS[gi % GOAL_COLORS.length];
-                const todayRating = getRatingForDate(goal.id, selectedDate);
-                const longPct = getLongTermProgress(goal.id);
-                const habits = goal.habits ?? [];
-                const isExpanded = expandedHabits.has(goal.id);
-                const dayHabitRatings = getHabitRatingsForDate(goal.id, selectedDate);
-
-                return (
-                  <motion.div
-                    key={goal.id}
-                    initial={{ opacity: 0, y: 6 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ delay: gi * 0.05 }}
-                    className="rounded-xl border border-monk-border bg-monk-surface overflow-hidden"
-                  >
-                    <div className="flex flex-col gap-2 px-4 py-3.5">
-                      <div className="flex items-center justify-between gap-2">
-                        <div className="flex items-center gap-2 min-w-0">
-                          <span className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ background: color }} />
-                          <span className="text-sm text-monk-text truncate">{goal.name}</span>
-                        </div>
-                        <span className="text-xs text-monk-muted opacity-60 flex-shrink-0">
-                          {longPct}% overall
-                        </span>
-                      </div>
-
-                      {/* Overarching rating */}
-                      <DotRating
-                        rating={todayRating}
-                        onRate={(r) => setRating(goal.id, selectedDate, r)}
-                        color={color}
-                      />
-
-                      {/* Progress bar */}
-                      <div className="h-1 bg-monk-border rounded-full overflow-hidden">
-                        <div
-                          className="h-full rounded-full transition-all duration-700"
-                          style={{ width: `${longPct}%`, background: color }}
-                        />
-                      </div>
-
-                      {/* Habit toggle */}
-                      {habits.length > 0 && (
-                        <button
-                          onClick={() => toggleHabitExpand(goal.id)}
-                          className="flex items-center gap-1.5 text-[11px] text-monk-muted hover:text-monk-text transition-colors cursor-pointer mt-0.5 w-fit"
-                        >
-                          <motion.span
-                            animate={{ rotate: isExpanded ? 90 : 0 }}
-                            transition={{ duration: 0.2 }}
-                            className="inline-block"
-                          >
-                            ›
-                          </motion.span>
-                          Rate by habit
-                          {dayHabitRatings.length > 0 && (
-                            <span className="text-monk-accent ml-1">
-                              ({dayHabitRatings.length}/{habits.length} rated)
-                            </span>
-                          )}
-                        </button>
-                      )}
-                    </div>
-
-                    {/* Habit sub-ratings */}
-                    <AnimatePresence initial={false}>
-                      {isExpanded && habits.length > 0 && (
-                        <motion.div
-                          initial={{ height: 0, opacity: 0 }}
-                          animate={{ height: "auto", opacity: 1 }}
-                          exit={{ height: 0, opacity: 0 }}
-                          transition={{ duration: 0.2 }}
-                          className="border-t border-monk-border bg-monk-bg/40 px-4 py-3 flex flex-col gap-3"
-                        >
-                          {habits.map((habit) => {
-                            const hr = getHabitRatingForDate(goal.id, habit.id, selectedDate);
-                            return (
-                              <div key={habit.id} className="flex flex-col gap-1.5">
-                                <span className="text-xs text-monk-muted">{habit.name}</span>
-                                <DotRating
-                                  rating={hr}
-                                  onRate={(r) => setHabitRating(goal.id, habit.id, selectedDate, r)}
-                                  color={color}
-                                  size={16}
-                                />
-                              </div>
-                            );
-                          })}
-                          {dayHabitRatings.length > 0 && (
-                            <p className="text-[10px] text-monk-muted opacity-70 italic">
-                              Habit average auto-updates the overall rating above
-                            </p>
-                          )}
-                        </motion.div>
-                      )}
-                    </AnimatePresence>
-                  </motion.div>
-                );
-              })}
-            </div>
-          )}
-        </section>
+        {/* ── GOAL SECTIONS ── */}
+        {SECTIONS.map(({ category, max, note }) => (
+          <CategorySection
+            key={category}
+            category={category}
+            max={max}
+            note={note}
+            goals={getGoalsForCategory(category)}
+            selectedDate={selectedDate}
+            getRatingForDate={getRatingForDate}
+            setRating={setRating}
+            addGoal={addGoal}
+            renameGoal={renameGoal}
+            removeGoal={removeGoal}
+          />
+        ))}
 
         {/* ── NOTES ── */}
-        <section>
+        <section className="border-t border-monk-border pt-5">
           <h2 className="text-xs font-semibold tracking-widest uppercase text-monk-muted mb-3">
             Notes for this day
           </h2>
@@ -356,153 +524,6 @@ export default function GoalsPage() {
           </div>
         </section>
 
-        {/* ── MANAGE GOALS ── */}
-        <section className="border-t border-monk-border pt-6">
-          <h2 className="text-xs font-semibold tracking-widest uppercase text-monk-muted mb-4">
-            Manage goals
-          </h2>
-
-          <form onSubmit={handleAddGoal} className="flex gap-2 mb-4">
-            <input
-              type="text"
-              value={newGoalName}
-              onChange={(e) => setNewGoalName(e.target.value)}
-              placeholder="Add a new goal…"
-              maxLength={60}
-              className="flex-1 bg-monk-surface text-monk-text placeholder-monk-muted text-base px-4 py-2.5 rounded-xl border border-monk-border focus:outline-none focus:border-monk-accent transition-colors"
-            />
-            <motion.button
-              whileTap={{ scale: 0.92 }}
-              type="submit"
-              disabled={!newGoalName.trim()}
-              className="px-4 py-2.5 bg-monk-accent text-white rounded-xl text-sm font-medium disabled:opacity-40 transition-opacity cursor-pointer"
-            >
-              +
-            </motion.button>
-          </form>
-
-          <div className="space-y-2">
-            <AnimatePresence>
-              {goals.map((goal, gi) => {
-                const color = GOAL_COLORS[gi % GOAL_COLORS.length];
-                const habits = goal.habits ?? [];
-                const isEditingThis = editingGoalId === goal.id;
-                const manageExpanded = expandedManage.has(goal.id);
-
-                return (
-                  <motion.div
-                    key={goal.id}
-                    initial={{ opacity: 0, x: -10 }}
-                    animate={{ opacity: 1, x: 0 }}
-                    exit={{ opacity: 0, x: -10, height: 0 }}
-                    transition={{ duration: 0.2 }}
-                    className="rounded-xl border border-monk-border bg-monk-surface overflow-hidden"
-                  >
-                    {/* Goal row */}
-                    <div className="group flex items-center gap-3 px-4 py-2.5">
-                      <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ background: color }} />
-
-                      {isEditingThis ? (
-                        <form
-                          className="flex-1 flex gap-2"
-                          onSubmit={(e) => { e.preventDefault(); confirmEditGoal(); }}
-                        >
-                          <input
-                            ref={editInputRef}
-                            value={editingName}
-                            onChange={(e) => setEditingName(e.target.value)}
-                            maxLength={60}
-                            className="flex-1 bg-monk-bg text-monk-text text-base px-2 py-0.5 rounded-lg border border-monk-accent focus:outline-none"
-                          />
-                          <button type="submit" className="text-monk-accent text-sm cursor-pointer">✓</button>
-                          <button type="button" onClick={() => setEditingGoalId(null)} className="text-monk-muted text-sm cursor-pointer">✕</button>
-                        </form>
-                      ) : (
-                        <span className="flex-1 text-sm text-monk-text">{goal.name}</span>
-                      )}
-
-                      {!isEditingThis && (
-                        <div className="flex items-center gap-2">
-                          <button
-                            onClick={() => toggleManageExpand(goal.id)}
-                            className="text-[10px] text-monk-muted hover:text-monk-text transition-colors cursor-pointer border border-monk-border rounded px-2 py-1"
-                          >
-                            habits {habits.length > 0 ? `(${habits.length})` : "+"}
-                          </button>
-                          <button
-                            onClick={() => startEditGoal(goal.id, goal.name)}
-                            className="text-monk-muted hover:text-monk-text transition-colors cursor-pointer text-base p-1"
-                            aria-label="Edit goal"
-                          >
-                            ✎
-                          </button>
-                          <button
-                            onClick={() => removeGoal(goal.id)}
-                            className="text-monk-muted hover:text-red-400 text-xl leading-none transition-colors cursor-pointer p-1"
-                          >
-                            ×
-                          </button>
-                        </div>
-                      )}
-                    </div>
-
-                    {/* Habit management */}
-                    <AnimatePresence initial={false}>
-                      {manageExpanded && (
-                        <motion.div
-                          initial={{ height: 0, opacity: 0 }}
-                          animate={{ height: "auto", opacity: 1 }}
-                          exit={{ height: 0, opacity: 0 }}
-                          transition={{ duration: 0.2 }}
-                          className="border-t border-monk-border bg-monk-bg/40 px-4 py-3 flex flex-col gap-2"
-                        >
-                          {habits.map((habit) => (
-                            <div key={habit.id} className="flex items-center gap-2">
-                              <span className="w-1 h-1 rounded-full bg-monk-muted flex-shrink-0" />
-                              <span className="flex-1 text-xs text-monk-text">{habit.name}</span>
-                              <button
-                                onClick={() => removeHabitFromGoal(goal.id, habit.id)}
-                                className="text-monk-muted hover:text-red-400 text-base leading-none transition-colors cursor-pointer p-1"
-                              >
-                                ×
-                              </button>
-                            </div>
-                          ))}
-                          {habits.length === 0 && (
-                            <p className="text-[11px] text-monk-muted italic">No habits yet</p>
-                          )}
-                          <form
-                            className="flex gap-2 mt-1"
-                            onSubmit={(e) => { e.preventDefault(); handleAddHabit(goal.id); }}
-                          >
-                            <input
-                              type="text"
-                              value={newHabitInputs[goal.id] ?? ""}
-                              onChange={(e) =>
-                                setNewHabitInputs((prev) => ({ ...prev, [goal.id]: e.target.value }))
-                              }
-                              placeholder="Add a habit…"
-                              maxLength={60}
-                              className="flex-1 bg-monk-surface text-monk-text placeholder-monk-muted text-base px-3 py-1.5 rounded-lg border border-monk-border focus:outline-none focus:border-monk-accent transition-colors"
-                            />
-                            <motion.button
-                              whileTap={{ scale: 0.92 }}
-                              type="submit"
-                              disabled={!(newHabitInputs[goal.id] ?? "").trim()}
-                              className="px-3 py-1.5 bg-monk-accent text-white rounded-lg text-xs disabled:opacity-40 cursor-pointer"
-                            >
-                              +
-                            </motion.button>
-                          </form>
-                        </motion.div>
-                      )}
-                    </AnimatePresence>
-                  </motion.div>
-                );
-              })}
-            </AnimatePresence>
-          </div>
-        </section>
       </main>
     </div>
   );

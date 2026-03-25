@@ -13,6 +13,8 @@ export interface MonkMemory {
   about: string
   vows: string[]
   updated_at: string
+  conversation_count?: number
+  vow_prompt_ready?: boolean
 }
 
 // ── Avatar state calculation ──────────────────────────────────────────────────
@@ -89,6 +91,18 @@ export async function saveEntry(userId: string, content: string, emotionalScore:
   })
   // Update preferred_hour based on when the user actually checks in
   updatePreferredHour(userId)
+  // Track conversation count and set vow_prompt_ready at 3
+  incrementConversationCount(userId)
+}
+
+async function incrementConversationCount(userId: string) {
+  const mem = await loadMemory(userId)
+  const newCount = (mem.conversation_count ?? 0) + 1
+  const updates: Partial<MonkMemory> = { conversation_count: newCount }
+  if (newCount >= 3 && !mem.vow_prompt_ready) {
+    updates.vow_prompt_ready = true
+  }
+  await updateMemory(userId, updates)
 }
 
 async function updatePreferredHour(userId: string) {

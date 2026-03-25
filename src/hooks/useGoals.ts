@@ -1,7 +1,7 @@
 "use client";
 
 import { useLocalStorage } from "./useLocalStorage";
-import { Goal, GoalHabit, DayRating, HabitRating, DayNote } from "@/types";
+import { Goal, GoalCategory, GoalHabit, DayRating, HabitRating, DayNote } from "@/types";
 
 export function useGoals() {
   const [goals, setGoals] = useLocalStorage<Goal[]>("monk_goals_v2", []);
@@ -11,7 +11,7 @@ export function useGoals() {
 
   // ── Goal CRUD ──────────────────────────────────────────────
 
-  const addGoal = (name: string) => {
+  const addGoal = (name: string, category: GoalCategory = 'uncategorized') => {
     const trimmed = name.trim();
     if (!trimmed) return;
     const goal: Goal = {
@@ -19,8 +19,16 @@ export function useGoals() {
       name: trimmed,
       createdAt: new Date().toISOString(),
       habits: [],
+      category,
+      active: true,
     };
     setGoals((prev) => [...prev, goal]);
+  };
+
+  const setCategoryForGoal = (goalId: string, category: GoalCategory) => {
+    setGoals((prev) =>
+      prev.map((g) => (g.id === goalId ? { ...g, category } : g))
+    );
   };
 
   const removeGoal = (id: string) => {
@@ -192,6 +200,7 @@ export function useGoals() {
     addGoal,
     removeGoal,
     renameGoal,
+    setCategoryForGoal,
     addHabitToGoal,
     removeHabitFromGoal,
     setRating,
