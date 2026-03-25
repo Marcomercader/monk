@@ -13,9 +13,12 @@ interface Entry {
 }
 
 interface NotifLog {
+  id: string;
   type: string;
   sent_at: string;
   message: string;
+  metadata?: { question?: string; format?: string } | null;
+  answered_at?: string | null;
 }
 
 interface Memory {
@@ -197,6 +200,48 @@ Good examples: "You have mentioned your father four times this week without sayi
   );
 }
 
+async function buildEasyQuestion(
+  apiKey: string,
+  mem: Memory,
+  entries: Entry[]
+): Promise<{ question: string; format: "options" | "text" }> {
+  const recentTexts = entries
+    .slice(0, 3)
+    .map((e, i) => `Entry ${i + 1}: "${e.content}"`)
+    .join("\n");
+
+  const context = `
+Depth score: ${mem.depth_score}
+Their summary: ${mem.relationship_summary || "Not available."}
+Recent entries:
+${recentTexts || "None yet."}
+`.trim();
+
+  const question = await generateMessage(
+    apiKey,
+    `You are a monk. Generate ONE short, direct introspective question for this person — something they can answer with a single word or short phrase. Ground it in what you know about them. Examples: "Did you follow through on what you said yesterday?" / "Are you sleeping enough?" / "Have you spoken to them yet?". Maximum 15 words. No preamble, no emoji, just the question.`,
+    context
+  );
+
+  const format: "options" | "text" = Math.random() < 0.5 ? "options" : "text";
+  return { question, format };
+}
+
+function shouldSendEasyQuestion(logs: NotifLog[]): boolean {
+  const twoDaysAgo = Date.now() - 48 * 3600000;
+  const easyLogs = logs.filter((l) => l.type === "easy_question");
+
+  // Don't send if there is already a pending unanswered question
+  if (easyLogs.some((l) => !l.answered_at)) return false;
+
+  // Send if never sent before, or last one was > 48h ago
+  if (easyLogs.length === 0) return true;
+  const last = [...easyLogs].sort(
+    (a, b) => new Date(b.sent_at).getTime() - new Date(a.sent_at).getTime()
+  )[0];
+  return new Date(last.sent_at).getTime() < twoDaysAgo;
+}
+
 async function buildAbsenceCall(apiKey: string, entries: Entry[], mem: Memory, daysSince: number): Promise<string> {
   const isClose = mem.depth_score > 20;
   const lastEntry = entries[0]?.content ?? "";
@@ -266,7 +311,7 @@ Deno.serve(async (req) => {
       const [entriesRes, entries7dRes, logsRes, memRes] = await Promise.all([
         fetch(`${SUPABASE_URL}/rest/v1/entries?user_id=eq.${userId}&select=content,emotional_score,created_at,themes&order=created_at.desc&limit=10`, { headers: db }),
         fetch(`${SUPABASE_URL}/rest/v1/entries?user_id=eq.${userId}&created_at=gte.${sevenDaysAgo}&select=content,themes,created_at&order=created_at.desc`, { headers: db }),
-        fetch(`${SUPABASE_URL}/rest/v1/notification_log?user_id=eq.${userId}&select=type,sent_at,message&order=sent_at.desc&limit=30`, { headers: db }),
+        fetch(`${SUPABASE_URL}/rest/v1/notification_log?user_id=eq.${userId}&select=id,type,sent_at,message,metadata,answered_at&order=sent_at.desc&limit=30`, { headers: db }),
         fetch(`${SUPABASE_URL}/rest/v1/monk_memory?user_id=eq.${userId}&select=depth_score,relationship_summary,recurring_themes,about,vows&limit=1`, { headers: db }),
       ]);
 
@@ -299,6 +344,7 @@ Deno.serve(async (req) => {
       // ── Decide what to send ──────────────────────────────────────────────
       let notifType: string | null = null;
       let message = "";
+      let notifMetadata: object | null = null;
 
       const morningDone  = morningPulseSentToday(logs);
       const sentToday    = notificationsSentToday(logs);
@@ -313,6 +359,13 @@ Deno.serve(async (req) => {
         // Pattern surface: fires any time if it's the only notification, or after 9pm as second
         notifType = "pattern_surface";
         message   = await buildPatternSurface(ANTHROPIC_KEY, pattern.theme, entries7d, pattern.count);
+
+      } else if (shouldSendEasyQuestion(logs)) {
+        // Easy question: fires every 48h if no pending unanswered question
+        const easyQ = await buildEasyQuestion(ANTHROPIC_KEY, mem, entries);
+        notifType    = "easy_question";
+        message      = easyQ.question;
+        notifMetadata = { question: easyQ.question, format: easyQ.format };
 
       } else if (testMode || (!morningDone && currentHour >= preferredHour && currentHour < preferredHour + 2)) {
         notifType = "morning_pulse";
@@ -333,7 +386,12 @@ Deno.serve(async (req) => {
       await fetch(`${SUPABASE_URL}/rest/v1/notification_log`, {
         method: "POST",
         headers: db,
-        body: JSON.stringify({ user_id: userId, type: notifType, message }),
+        body: JSON.stringify({
+          user_id: userId,
+          type: notifType,
+          message,
+          ...(notifMetadata ? { metadata: notifMetadata } : {}),
+        }),
       });
 
       results.push({ user: userId, type: notifType, message });

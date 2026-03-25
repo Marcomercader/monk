@@ -29,6 +29,12 @@ function getMicSupport(): SpeechRecognitionCtor | null {
   return w["SpeechRecognition"] ?? w["webkitSpeechRecognition"] ?? null;
 }
 
+interface PendingQuestion {
+  id: string;
+  question: string;
+  format: "options" | "text";
+}
+
 export default function ThinkPage() {
   const router = useRouter();
   const [messages, setMessages] = useState<Message[]>([]);
@@ -39,6 +45,8 @@ export default function ThinkPage() {
   const [isRecording, setIsRecording] = useState(false);
   const [micError, setMicError] = useState("");
   const [micSupported, setMicSupported] = useState(false);
+  const [pendingQuestion, setPendingQuestion] = useState<PendingQuestion | null>(null);
+  const [questionInput, setQuestionInput] = useState("");
 
   const memoryRef      = useRef<MonkMemory | null>(null);
   const userIdRef      = useRef<string | null>(null);
@@ -72,6 +80,17 @@ export default function ThinkPage() {
 
       const prior = await loadMessages(user.id);
       priorRef.current = prior; // kept for API context, not rendered
+
+      // Check for a pending easy question
+      try {
+        const qRes = await fetch(`/api/easy-question?userId=${user.id}`);
+        if (qRes.ok) {
+          const qData = await qRes.json();
+          if (qData.pending) setPendingQuestion({ id: qData.id, question: qData.question, format: qData.format });
+        }
+      } catch {
+        // Non-critical — ignore
+      }
 
       setReady(true);
       setTimeout(() => inputRef.current?.focus(), 100);
@@ -179,6 +198,26 @@ export default function ThinkPage() {
     if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); send(); }
   }
 
+  async function answerQuestion(answer: string) {
+    if (!pendingQuestion || !userIdRef.current) return;
+    const { id, question } = pendingQuestion;
+    setPendingQuestion(null);
+    setQuestionInput("");
+
+    // Save answer and mark notification as answered (fire-and-forget)
+    fetch("/api/easy-question", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ userId: userIdRef.current, notificationId: id, question, answer }),
+    }).catch(() => {});
+
+    // Inject Q&A into prior context so monk is aware when the user next writes
+    priorRef.current = [
+      ...priorRef.current,
+      { role: "user" as const, content: `[I just answered a question from you: "${question}" → My answer: "${answer}"]` },
+    ];
+  }
+
   function toggleVoice() {
     if (isRecording) {
       recognitionRef.current?.stop();
@@ -230,6 +269,57 @@ export default function ThinkPage() {
           ← back
         </button>
       </div>
+
+      {/* Easy question card */}
+      {pendingQuestion && (
+        <div className="flex-shrink-0 px-6 pb-2">
+          <div style={{ background: "rgba(0,0,0,0.03)", border: "1px solid rgba(0,0,0,0.08)", borderRadius: 16, padding: "20px 16px 14px" }}>
+            <p style={{ fontFamily: "var(--font-lora), Georgia, serif", fontSize: "1rem", lineHeight: 1.65, color: "#1a1714", margin: "0 0 16px" }}>
+              {pendingQuestion.question}
+            </p>
+
+            {pendingQuestion.format === "options" ? (
+              <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                {["Yes", "No", "Not yet", "I don't want to answer this"].map(opt => (
+                  <button
+                    key={opt}
+                    onClick={() => answerQuestion(opt)}
+                    style={{ height: 44, borderRadius: 9999, border: "1px solid rgba(0,0,0,0.15)", background: "none", cursor: "pointer", fontSize: "0.875rem", color: "#1a1714", letterSpacing: "0.01em", transition: "background 0.15s" }}
+                    onMouseEnter={e => (e.currentTarget.style.background = "rgba(0,0,0,0.04)")}
+                    onMouseLeave={e => (e.currentTarget.style.background = "none")}
+                  >
+                    {opt}
+                  </button>
+                ))}
+              </div>
+            ) : (
+              <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+                <input
+                  value={questionInput}
+                  onChange={e => setQuestionInput(e.target.value)}
+                  onKeyDown={e => { if (e.key === "Enter" && questionInput.trim()) answerQuestion(questionInput.trim()); }}
+                  placeholder="Your answer..."
+                  style={{ flex: 1, height: 44, borderRadius: 9999, border: "1px solid rgba(0,0,0,0.15)", padding: "0 16px", background: "none", fontSize: "0.875rem", color: "#1a1714", outline: "none", fontFamily: "inherit" }}
+                />
+                <button
+                  onClick={() => { if (questionInput.trim()) answerQuestion(questionInput.trim()); }}
+                  disabled={!questionInput.trim()}
+                  style={{ width: 44, height: 44, borderRadius: "50%", border: "1px solid rgba(0,0,0,0.15)", background: "none", cursor: questionInput.trim() ? "pointer" : "default", fontSize: "14px", color: "rgba(0,0,0,0.4)", flexShrink: 0, opacity: questionInput.trim() ? 1 : 0.3, transition: "opacity 0.2s" }}
+                >
+                  ↑
+                </button>
+              </div>
+            )}
+
+            <button
+              onClick={() => setPendingQuestion(null)}
+              style={{ display: "block", margin: "12px auto 0", background: "none", border: "none", cursor: "pointer", fontSize: "0.75rem", color: "rgba(0,0,0,0.25)", letterSpacing: "0.03em" }}
+            >
+              Ask me later
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* Thread */}
       <div
