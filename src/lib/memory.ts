@@ -1,6 +1,6 @@
 import { supabase } from './supabase'
 
-export type AvatarState = 'thriving' | 'stable' | 'struggling' | 'absent'
+export type AvatarState = 'emerging' | 'rooted' | 'deep'
 
 export interface MonkMemory {
   id: string
@@ -16,41 +16,29 @@ export interface MonkMemory {
 }
 
 // ── Avatar state calculation ──────────────────────────────────────────────────
-// Takes the last 7 entries (newest first) with timestamps.
-// Recent 2 entries count double. 3+ days silence drops base by 1.5.
+// depthScore: total entries the user has made (monk_memory.depth_score)
+// recentScores: emotional_score values for last 30 entries (newest first)
 export function calculateAvatarState(
-  entries: Array<{ emotional_score: number; created_at: string }>
+  depthScore: number,
+  recentScores: number[],
 ): AvatarState {
-  if (entries.length === 0) return 'stable'
+  if (recentScores.length === 0 && depthScore === 0) return 'emerging'
 
-  const last7 = entries.slice(0, 7)
+  const avg = recentScores.length > 0
+    ? recentScores.reduce((s, n) => s + n, 0) / recentScores.length
+    : 0
 
-  // Weighted average — most recent 2 count double
-  let weightedSum = 0
-  let totalWeight = 0
-  last7.forEach((entry, i) => {
-    const weight = i < 2 ? 2 : 1
-    weightedSum += entry.emotional_score * weight
-    totalWeight += weight
-  })
-  let base = weightedSum / totalWeight
-
-  // Absence penalty — 3+ days since last entry
-  const mostRecentMs = new Date(last7[0].created_at).getTime()
-  const daysSince = (Date.now() - mostRecentMs) / (1000 * 60 * 60 * 24)
-  if (daysSince >= 3) base -= 1.5
-
-  // Map to state
-  if (base >= 4.0)  return 'thriving'
-  if (base >= 1.0)  return 'stable'
-  if (base > -2.0)  return 'struggling'
-  return 'absent'
+  if (depthScore >= 10 && avg > 0.0) return 'deep'
+  if (depthScore >= 5  && avg > -1)  return 'rooted'
+  return 'emerging'
 }
 
-// Fetches last 7 entries, calculates state, persists it to monk_memory
+// Fetches last 30 entry scores + depth_score, calculates state, persists it
 export async function refreshAvatarState(userId: string): Promise<AvatarState> {
-  const entries = await getRecentEntries(userId, 7)
-  const state = calculateAvatarState(entries)
+  const mem     = await loadMemory(userId)
+  const entries = await getRecentEntries(userId, 30)
+  const scores  = entries.map(e => e.emotional_score)
+  const state   = calculateAvatarState(mem.depth_score ?? 0, scores)
   await updateMemory(userId, { avatar_state: state })
   return state
 }

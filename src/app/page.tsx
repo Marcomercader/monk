@@ -6,10 +6,9 @@ import { motion } from "framer-motion";
 import { ensureAuth, loadMemory, AvatarState } from "@/lib/memory";
 
 const AVATAR_IMAGES: Record<AvatarState, string> = {
-  thriving:   "/monk-1.png",
-  stable:     "/monk-2.png",
-  struggling: "/monk-3.png",
-  absent:     "/monk-4.png",
+  emerging: "/monk-1.png",
+  rooted:   "/monk-3.png",
+  deep:     "/monk-4.png",
 };
 
 function urlBase64ToUint8Array(base64String: string) {
@@ -46,7 +45,7 @@ async function registerPush(userId: string) {
 
 export default function Home() {
   const router = useRouter();
-  const [avatarState, setAvatarState] = useState<AvatarState>("stable");
+  const [avatarState, setAvatarState] = useState<AvatarState>("emerging");
   const [ready, setReady]             = useState(false);
   const [username, setUsername]       = useState("");
 
@@ -130,7 +129,7 @@ export default function Home() {
         transition={{ duration: 0.9, ease: "easeOut" }}
         className="absolute left-1/2 -translate-x-1/2 object-contain pointer-events-none"
         style={{
-          width: avatarState === "absent" ? "14.52rem" : "13.2rem",
+          width: avatarState === "deep" ? "14.52rem" : "13.2rem",
           bottom: 0,
           zIndex: 2,
         }}
