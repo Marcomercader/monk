@@ -40,11 +40,13 @@ export default function ThinkPage() {
   const [micError, setMicError] = useState("");
   const [micSupported, setMicSupported] = useState(false);
 
-  const memoryRef   = useRef<MonkMemory | null>(null);
-  const userIdRef   = useRef<string | null>(null);
-  const bottomRef   = useRef<HTMLDivElement>(null);
-  const inputRef    = useRef<HTMLTextAreaElement>(null);
+  const memoryRef      = useRef<MonkMemory | null>(null);
+  const userIdRef      = useRef<string | null>(null);
+  const bottomRef      = useRef<HTMLDivElement>(null);
+  const inputRef       = useRef<HTMLTextAreaElement>(null);
   const recognitionRef = useRef<ISpeechRecognition | null>(null);
+  // Prior messages loaded for API context only — not rendered in the UI
+  const priorRef       = useRef<Message[]>([]);
 
   useEffect(() => {
     setMicSupported(getMicSupport() !== null);
@@ -67,7 +69,7 @@ export default function ThinkPage() {
       });
 
       const prior = await loadMessages(user.id);
-      if (prior.length > 0) setMessages(prior);
+      priorRef.current = prior; // kept for API context, not rendered
 
       setReady(true);
       setTimeout(() => inputRef.current?.focus(), 100);
@@ -100,11 +102,12 @@ export default function ThinkPage() {
       const vows  = JSON.parse(localStorage.getItem("monk_vows")  ?? "[]") as string[];
       const about = localStorage.getItem("monk_about") ?? "";
 
+      const apiMessages = [...priorRef.current, ...nextMessages];
       const res = await fetch("/api/think", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          messages: nextMessages.map(m => ({ role: m.role, content: m.content })),
+          messages: apiMessages.map(m => ({ role: m.role, content: m.content })),
           memory: {
             depth_score:          mem?.depth_score ?? 0,
             relationship_summary: mem?.relationship_summary ?? "",
