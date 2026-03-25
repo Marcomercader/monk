@@ -5,6 +5,13 @@ import { useRouter } from "next/navigation";
 import { motion } from "framer-motion";
 import { ensureAuth, loadMemory, AvatarState } from "@/lib/memory";
 
+const OLD_TO_NEW: Record<string, AvatarState> = {
+  thriving:   "deep",
+  stable:     "rooted",
+  struggling: "emerging",
+  absent:     "emerging",
+};
+
 const AVATAR_IMAGES: Record<AvatarState, string> = {
   emerging: "/monk-1.png",
   rooted:   "/monk-3.png",
@@ -55,7 +62,13 @@ export default function Home() {
     setUsername(name);
     ensureAuth()
       .then(user => { registerPush(user.id); return loadMemory(user.id); })
-      .then(mem  => { if (mem?.avatar_state) setAvatarState(mem.avatar_state as AvatarState); })
+      .then(mem  => {
+        if (mem?.avatar_state) {
+          const val = mem.avatar_state;
+          const mapped = (["emerging","rooted","deep"].includes(val) ? val : (OLD_TO_NEW[val] ?? "emerging")) as AvatarState;
+          setAvatarState(mapped);
+        }
+      })
       .catch(() => {})
       .finally(() => setReady(true));
   }, [router]);
