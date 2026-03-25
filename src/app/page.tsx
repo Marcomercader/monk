@@ -11,6 +11,14 @@ const AVATAR_IMAGES: Record<AvatarState, string> = {
   deep:     "/monk-4.png",
 };
 
+const VALID_STATES: AvatarState[] = ["emerging", "rooted", "deep"];
+const OLD_TO_NEW: Record<string, AvatarState> = {
+  thriving:   "deep",
+  stable:     "rooted",
+  struggling: "emerging",
+  absent:     "emerging",
+};
+
 function urlBase64ToUint8Array(base64String: string) {
   const padding = "=".repeat((4 - (base64String.length % 4)) % 4);
   const base64 = (base64String + padding).replace(/-/g, "+").replace(/_/g, "/");
@@ -55,7 +63,13 @@ export default function Home() {
     setUsername(name);
     ensureAuth()
       .then(user => { registerPush(user.id); return loadMemory(user.id); })
-      .then(mem  => { if (mem?.avatar_state) setAvatarState(mem.avatar_state as AvatarState); })
+      .then(mem  => {
+        if (mem?.avatar_state) {
+          const val = mem.avatar_state;
+          const mapped = (VALID_STATES as string[]).includes(val) ? val as AvatarState : (OLD_TO_NEW[val] ?? "emerging");
+          setAvatarState(mapped);
+        }
+      })
       .catch(() => {})
       .finally(() => setReady(true));
   }, [router]);
