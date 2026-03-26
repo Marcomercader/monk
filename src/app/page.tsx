@@ -19,12 +19,6 @@ const AVATAR_IMAGES: Record<AvatarState, string> = {
 };
 
 const VALID_STATES: AvatarState[] = ["emerging", "rooted", "deep"];
-const OLD_TO_NEW: Record<string, AvatarState> = {
-  thriving:   "deep",
-  stable:     "rooted",
-  struggling: "emerging",
-  absent:     "emerging",
-};
 
 function urlBase64ToUint8Array(base64String: string) {
   const padding = "=".repeat((4 - (base64String.length % 4)) % 4);
@@ -60,16 +54,25 @@ async function registerPush(userId: string) {
 
 export default function Home() {
   const router = useRouter();
-  const [avatarState, setAvatarState] = useState<AvatarState>("emerging");
-  const [ready, setReady]             = useState(false);
-  const [username, setUsername]       = useState("");
+  const [avatarState, setAvatarState]         = useState<AvatarState>("emerging");
+  const [ready, setReady]                     = useState(false);
+  const [username, setUsername]               = useState("");
+  const [pendingReckoning, setPendingReckoning] = useState(false);
 
   useEffect(() => {
     const name = localStorage.getItem("monk_username");
     if (!name) { router.replace("/onboarding"); return; }
     setUsername(name);
     ensureAuth()
-      .then(user => { registerPush(user.id); return loadMemory(user.id); })
+      .then(user => {
+        registerPush(user.id);
+        // Check for unread reckoning
+        fetch(`/api/reckoning?userId=${user.id}`)
+          .then(r => r.json())
+          .then(j => { if (j.pending) setPendingReckoning(true); })
+          .catch(() => {});
+        return loadMemory(user.id);
+      })
       .then(mem  => {
         if (mem?.avatar_state) {
           const val = mem.avatar_state;
@@ -155,6 +158,32 @@ export default function Home() {
           zIndex: 2,
         }}
       />
+
+      {/* Reckoning prompt */}
+      {pendingReckoning && (
+        <motion.button
+          initial={{ opacity: 0 }}
+          animate={{ opacity: [0, 0.6, 0.3, 0.6] }}
+          transition={{ duration: 2.4, times: [0, 0.3, 0.6, 1], repeat: Infinity, repeatType: "reverse" }}
+          onClick={e => { e.stopPropagation(); router.push("/reckoning"); }}
+          className="absolute left-1/2 -translate-x-1/2 z-10"
+          style={{
+            bottom: "calc(55% + 8px)",
+            background: "none",
+            border: "none",
+            cursor: "pointer",
+            fontSize: "11px",
+            letterSpacing: "0.2em",
+            color: "rgba(0,0,0,0.45)",
+            fontFamily: "var(--font-lora), Georgia, serif",
+            fontStyle: "italic",
+            padding: "8px 16px",
+            whiteSpace: "nowrap",
+          }}
+        >
+          The Reckoning awaits
+        </motion.button>
+      )}
     </div>
   );
 }
