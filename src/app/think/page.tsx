@@ -1,5 +1,7 @@
 "use client";
 
+export const dynamic = 'force-dynamic'
+
 import { useState, useRef, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { ensureAuth, loadMemory, updateMemory, saveEntry, getRecentEntries, saveVows, mergeThemes, refreshAvatarState, loadMessages, saveMessage, MonkMemory } from "@/lib/memory";

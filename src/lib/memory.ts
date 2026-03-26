@@ -1,4 +1,4 @@
-import { supabase } from './supabase'
+import { getSupabase } from './supabase'
 
 export type AvatarState = 'emerging' | 'rooted' | 'deep'
 
@@ -47,17 +47,17 @@ export async function refreshAvatarState(userId: string): Promise<AvatarState> {
 
 // Anonymous sign-in — gives a real user_id so RLS policies work
 export async function ensureAuth() {
-  const { data: { session } } = await supabase.auth.getSession()
+  const { data: { session } } = await getSupabase().auth.getSession()
   if (session?.user) return session.user
 
-  const { data, error } = await supabase.auth.signInAnonymously()
+  const { data, error } = await getSupabase().auth.signInAnonymously()
   if (error) throw new Error(`Auth failed: ${error.message}`)
   return data.user!
 }
 
 // Load or create monk memory for current user
 export async function loadMemory(userId: string): Promise<MonkMemory> {
-  const { data } = await supabase
+  const { data } = await getSupabase()
     .from('monk_memory')
     .select('*')
     .eq('user_id', userId)
@@ -65,7 +65,7 @@ export async function loadMemory(userId: string): Promise<MonkMemory> {
 
   if (data) return data
 
-  const { data: created } = await supabase
+  const { data: created } = await getSupabase()
     .from('monk_memory')
     .insert({ user_id: userId })
     .select()
@@ -75,14 +75,14 @@ export async function loadMemory(userId: string): Promise<MonkMemory> {
 }
 
 export async function updateMemory(userId: string, updates: Partial<MonkMemory>) {
-  await supabase
+  await getSupabase()
     .from('monk_memory')
     .update({ ...updates, updated_at: new Date().toISOString() })
     .eq('user_id', userId)
 }
 
 export async function saveEntry(userId: string, content: string, emotionalScore: number, themes: string[], inputType: 'text' | 'voice' = 'text') {
-  await supabase.from('entries').insert({
+  await getSupabase().from('entries').insert({
     user_id: userId,
     content,
     emotional_score: emotionalScore,
@@ -108,7 +108,7 @@ async function incrementConversationCount(userId: string) {
 async function updatePreferredHour(userId: string) {
   // Get first entry of each day for the last 7 days
   const sevenDaysAgo = new Date(Date.now() - 7 * 86400000).toISOString()
-  const { data: entries } = await supabase
+  const { data: entries } = await getSupabase()
     .from('entries')
     .select('created_at')
     .eq('user_id', userId)
@@ -132,29 +132,29 @@ async function updatePreferredHour(userId: string) {
 
   const avgHour = Math.round(hours.reduce((a, b) => a + b, 0) / hours.length)
 
-  await supabase
+  await getSupabase()
     .from('push_subscriptions')
     .update({ preferred_hour: avgHour })
     .eq('user_id', userId)
 }
 
-export async function getRecentEntries(userId: string, limit = 20) {
-  const { data } = await supabase
+export async function getRecentEntries(userId: string, limit = 20): Promise<Array<{ content: string; emotional_score: number; themes: string[]; created_at: string }>> {
+  const { data } = await getSupabase()
     .from('entries')
     .select('content, emotional_score, themes, created_at')
     .eq('user_id', userId)
     .order('created_at', { ascending: false })
     .limit(limit)
 
-  return data || []
+  return (data as Array<{ content: string; emotional_score: number; themes: string[]; created_at: string }>) || []
 }
 
 export async function saveVows(userId: string, vows: string[]) {
   // Clear existing vows and insert fresh ones
-  await supabase.from('vows').delete().eq('user_id', userId)
+  await getSupabase().from('vows').delete().eq('user_id', userId)
   if (vows.filter(v => v.trim()).length === 0) return
 
-  await supabase.from('vows').insert(
+  await getSupabase().from('vows').insert(
     vows
       .filter(v => v.trim())
       .map(text => ({ user_id: userId, text: text.trim() }))
@@ -169,7 +169,7 @@ export function mergeThemes(existing: Record<string, number>, newThemes: string[
 
 // ── Message persistence ───────────────────────────────────────────────────────
 export async function loadMessages(userId: string, limit = 40) {
-  const { data } = await supabase
+  const { data } = await getSupabase()
     .from('messages')
     .select('role, content')
     .eq('user_id', userId)
@@ -180,6 +180,6 @@ export async function loadMessages(userId: string, limit = 40) {
 }
 
 export async function saveMessage(userId: string, role: 'user' | 'assistant', content: string) {
-  const { error } = await supabase.from('messages').insert({ user_id: userId, role, content })
+  const { error } = await getSupabase().from('messages').insert({ user_id: userId, role, content })
   if (error) console.error('saveMessage failed:', error.message, error.code)
 }
