@@ -2,6 +2,8 @@
 
 import { useState, useRef, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
+import Image from "next/image";
+import { motion, AnimatePresence } from "framer-motion";
 import { ensureAuth, loadMemory, updateMemory, saveEntry, getRecentEntries, saveVows, mergeThemes, refreshAvatarState, loadMessages, saveMessage, MonkMemory } from "@/lib/memory";
 
 interface Message {
@@ -23,6 +25,12 @@ interface ISpeechRecognition {
 }
 type SpeechRecognitionCtor = new () => ISpeechRecognition;
 
+const AVATAR_IMAGES: Record<string, string> = {
+  emerging: "/monk-1.png",
+  rooted:   "/monk-3.png",
+  deep:     "/monk-4.png",
+};
+
 function getMicSupport(): SpeechRecognitionCtor | null {
   if (typeof window === "undefined") return null;
   const w = window as unknown as Record<string, SpeechRecognitionCtor | undefined>;
@@ -39,6 +47,9 @@ export default function ThinkPage() {
   const [isRecording, setIsRecording] = useState(false);
   const [micError, setMicError] = useState("");
   const [micSupported, setMicSupported] = useState(false);
+  const [showGlow, setShowGlow] = useState(false);
+  const [showAssignmentCard, setShowAssignmentCard] = useState(false);
+  const [pendingAssignment, setPendingAssignment] = useState<string | null>(null);
 
   const memoryRef      = useRef<MonkMemory | null>(null);
   const userIdRef      = useRef<string | null>(null);
@@ -54,6 +65,13 @@ export default function ThinkPage() {
     setMicSupported(getMicSupport() !== null);
     bootstrap();
   }, []);
+
+  useEffect(() => {
+    if (showGlow) {
+      const t = setTimeout(() => setShowGlow(false), 1800);
+      return () => clearTimeout(t);
+    }
+  }, [showGlow]);
 
   async function bootstrap() {
     try {
@@ -73,6 +91,16 @@ export default function ThinkPage() {
       const prior = await loadMessages(user.id);
       priorRef.current = prior; // kept for API context, not rendered
 
+      // Check if assignment card should show
+      if (mem.current_assignment && !mem.assignment_checked_at && mem.assignment_given_at) {
+        const givenAt = new Date(mem.assignment_given_at);
+        const hoursSinceGiven = (Date.now() - givenAt.getTime()) / (1000 * 60 * 60);
+        if (hoursSinceGiven >= 24) {
+          setPendingAssignment(mem.current_assignment);
+          setShowAssignmentCard(true);
+        }
+      }
+
       setReady(true);
       setTimeout(() => inputRef.current?.focus(), 100);
     } catch (err) {
@@ -84,6 +112,33 @@ export default function ThinkPage() {
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages, thinking]);
+
+  async function handleAssignmentResponse(answer: "yes" | "no" | "working") {
+    const userId = userIdRef.current;
+    const assignment = pendingAssignment;
+    if (!userId || !assignment) return;
+
+    setShowAssignmentCard(false);
+
+    const completed = answer === "yes" ? true : answer === "no" ? false : null;
+    await updateMemory(userId, {
+      assignment_completed: completed,
+      assignment_checked_at: new Date().toISOString(),
+    });
+    memoryRef.current = {
+      ...memoryRef.current!,
+      assignment_completed: completed,
+      assignment_checked_at: new Date().toISOString(),
+    };
+
+    if (answer === "yes") setShowGlow(true);
+
+    const answerLabel = answer === "yes" ? "Yes, I did it" : answer === "no" ? "I didn't do it" : "Still working on it";
+    priorRef.current = [
+      ...priorRef.current,
+      { role: "user", content: `Assignment check-in: You asked me to ${assignment}. I answered: ${answerLabel}.` },
+    ];
+  }
 
   const sendMessage = useCallback(async (text: string, inputType: "text" | "voice" = "text") => {
     if (!text || thinking) return;
@@ -215,6 +270,8 @@ export default function ThinkPage() {
     rec.start();
   }
 
+  const avatarSrc = AVATAR_IMAGES[memoryRef.current?.avatar_state ?? "emerging"];
+
   return (
     <div className="flex flex-col w-full" style={{ height: "100dvh", backgroundColor: "#ffffff" }}>
       {/* Top bar */}
@@ -229,14 +286,96 @@ export default function ThinkPage() {
         >
           ← back
         </button>
+
+        {/* Monk avatar with glow */}
+        <div className="mx-auto relative flex items-center justify-center" style={{ width: 36, height: 36 }}>
+          {showGlow && (
+            <motion.div
+              initial={{ scale: 1, opacity: 0.6 }}
+              animate={{ scale: 1.4, opacity: 0 }}
+              transition={{ duration: 1.8, ease: "easeOut" }}
+              className="absolute inset-0 rounded-full pointer-events-none"
+              style={{ background: "rgba(250,204,21,0.3)" }}
+            />
+          )}
+          <Image
+            src={avatarSrc}
+            alt="Monk"
+            width={36}
+            height={36}
+            style={{ borderRadius: "50%", objectFit: "cover", opacity: 0.7 }}
+          />
+        </div>
+
+        {/* Spacer to balance back button */}
+        <div style={{ width: "3rem" }} />
       </div>
+
+      {/* Assignment check-in card */}
+      <AnimatePresence>
+        {showAssignmentCard && pendingAssignment && (
+          <motion.div
+            initial={{ opacity: 0, y: -8 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -8 }}
+            transition={{ duration: 0.3 }}
+            className="flex-shrink-0 mx-6 mb-4 p-4 rounded-2xl"
+            style={{ background: "rgba(0,0,0,0.03)", border: "1px solid rgba(0,0,0,0.07)" }}
+          >
+            <p
+              className="mb-3"
+              style={{
+                fontFamily: "var(--font-lora), Georgia, serif",
+                fontSize: "13px",
+                color: "rgba(0,0,0,0.55)",
+                fontStyle: "italic",
+                lineHeight: 1.6,
+              }}
+            >
+              Last time, I asked you to: {pendingAssignment}
+            </p>
+            <div className="flex gap-2 flex-wrap">
+              {[
+                { label: "Yes, I did it", answer: "yes" as const },
+                { label: "I didn't",      answer: "no" as const },
+                { label: "Still working on it", answer: "working" as const },
+              ].map(({ label, answer }) => (
+                <button
+                  key={answer}
+                  onClick={() => handleAssignmentResponse(answer)}
+                  style={{
+                    height: 44,
+                    padding: "0 16px",
+                    borderRadius: 22,
+                    border: "1px solid rgba(0,0,0,0.15)",
+                    background: "none",
+                    cursor: "pointer",
+                    fontSize: "12px",
+                    color: "rgba(0,0,0,0.5)",
+                    letterSpacing: "0.02em",
+                    transition: "background 0.15s, color 0.15s",
+                  }}
+                  onMouseEnter={e => {
+                    (e.currentTarget as HTMLButtonElement).style.background = "rgba(0,0,0,0.05)";
+                  }}
+                  onMouseLeave={e => {
+                    (e.currentTarget as HTMLButtonElement).style.background = "none";
+                  }}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {/* Thread */}
       <div
         className="flex-1 overflow-y-auto px-6 pb-4 flex flex-col gap-8"
         style={{ minHeight: 0, scrollbarWidth: "none" }}
       >
-        {messages.length === 0 && ready && (
+        {messages.length === 0 && ready && !showAssignmentCard && (
           <p
             className="m-auto text-center"
             style={{ fontFamily: "var(--font-lora), Georgia, serif", fontSize: "13px", color: "rgba(0,0,0,0.2)", letterSpacing: "0.05em", fontStyle: "italic" }}

@@ -15,6 +15,11 @@ export interface MonkMemory {
   conversation_count?: number
   vow_prompt_ready?: boolean
   updated_at: string
+  current_assignment?: string | null
+  assignment_given_at?: string | null
+  assignment_due_at?: string | null
+  assignment_completed?: boolean | null
+  assignment_checked_at?: string | null
 }
 
 // ── Avatar state calculation ──────────────────────────────────────────────────
@@ -93,6 +98,46 @@ export async function saveEntry(userId: string, content: string, emotionalScore:
   updatePreferredHour(userId)
   // Track conversation count and set vow_prompt_ready at 3
   incrementConversationCount(userId)
+  // Maybe generate a new weekly assignment
+  maybeGenerateAssignment(userId)
+}
+
+async function maybeGenerateAssignment(userId: string) {
+  const mem = await loadMemory(userId)
+  const now = new Date()
+  const assignmentDueAt = mem.assignment_due_at ? new Date(mem.assignment_due_at) : null
+  const assignmentGivenAt = mem.assignment_given_at ? new Date(mem.assignment_given_at) : null
+
+  const needsAssignment = !mem.current_assignment || (assignmentDueAt ? assignmentDueAt < now : true)
+  const cooldownOk = !assignmentGivenAt || (now.getTime() - assignmentGivenAt.getTime()) >= 7 * 24 * 60 * 60 * 1000
+
+  if (!needsAssignment || !cooldownOk) return
+
+  const recentEntries = await getRecentEntries(userId, 10)
+
+  try {
+    const res = await fetch('/api/assignment', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        memory: { depth_score: mem.depth_score, relationship_summary: mem.relationship_summary },
+        recentEntries,
+        vows: mem.vows || [],
+      }),
+    })
+    if (!res.ok) return
+    const { assignment } = await res.json()
+    if (!assignment) return
+
+    const dueAt = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000)
+    await updateMemory(userId, {
+      current_assignment: assignment,
+      assignment_given_at: now.toISOString(),
+      assignment_due_at: dueAt.toISOString(),
+      assignment_completed: null,
+      assignment_checked_at: null,
+    })
+  } catch { /* silently fail — assignment is a nice-to-have */ }
 }
 
 async function incrementConversationCount(userId: string) {
