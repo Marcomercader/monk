@@ -351,13 +351,9 @@ Deno.serve(async (req) => {
       if (shouldSendReckoning(logs, entries7d)) {
         const narrative = await buildReckoning(ANTHROPIC_KEY, mem, entries7d);
         if (narrative) {
-          await webpush.sendNotification(
-            sub.subscription,
-            JSON.stringify({ title: "monk", body: "The Reckoning is ready.", url: "/reckoning" })
-          );
-          await fetch(`${SUPABASE_URL}/rest/v1/notification_log`, {
+          const reckoningLogRes = await fetch(`${SUPABASE_URL}/rest/v1/notification_log`, {
             method: "POST",
-            headers: db,
+            headers: { ...db, "Prefer": "return=representation" },
             body: JSON.stringify({
               user_id: userId,
               type: "reckoning",
@@ -365,6 +361,12 @@ Deno.serve(async (req) => {
               metadata: { narrative },
             }),
           });
+          const reckoningLog = await reckoningLogRes.json();
+          const reckoningId = reckoningLog?.[0]?.id;
+          await webpush.sendNotification(
+            sub.subscription,
+            JSON.stringify({ title: "monk", body: "The Reckoning is ready.", url: "/reckoning", type: "reckoning", notificationId: reckoningId, userId })
+          );
           results.push({ user: userId, type: "reckoning" });
           continue;
         }
@@ -419,16 +421,18 @@ Deno.serve(async (req) => {
       }
 
       // ── Send ────────────────────────────────────────────────────────────
-      await webpush.sendNotification(
-        sub.subscription,
-        JSON.stringify({ title: "monk", body: message, url: "/think" })
-      );
-
-      await fetch(`${SUPABASE_URL}/rest/v1/notification_log`, {
+      const logRes = await fetch(`${SUPABASE_URL}/rest/v1/notification_log`, {
         method: "POST",
-        headers: db,
+        headers: { ...db, "Prefer": "return=representation" },
         body: JSON.stringify({ user_id: userId, type: notifType, message }),
       });
+      const logData = await logRes.json();
+      const notificationId = logData?.[0]?.id;
+
+      await webpush.sendNotification(
+        sub.subscription,
+        JSON.stringify({ title: "monk", body: message, url: "/think", type: notifType, notificationId, userId })
+      );
 
       results.push({ user: userId, type: notifType, message });
 
