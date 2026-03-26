@@ -13,9 +13,12 @@ interface Entry {
 }
 
 interface NotifLog {
+  id?: string;
   type: string;
   sent_at: string;
   message: string;
+  metadata?: Record<string, unknown>;
+  answered_at?: string | null;
 }
 
 interface Memory {
@@ -105,6 +108,74 @@ function hoursSinceLastNotification(logs: NotifLog[]): number {
 function morningPulseSentToday(logs: NotifLog[]): boolean {
   const today = new Date().toISOString().split("T")[0];
   return logs.some((l) => l.type === "morning_pulse" && l.sent_at.startsWith(today));
+}
+
+// ── Reckoning logic ────────────────────────────────────────────────────────
+
+function shouldSendReckoning(logs: NotifLog[], entries7d: Entry[]): boolean {
+  if (entries7d.length < 3) return false;
+  const sevenDaysAgo = Date.now() - 7 * 86400000;
+  const alreadySent = logs.some(
+    (l) => l.type === "reckoning" && new Date(l.sent_at).getTime() > sevenDaysAgo
+  );
+  return !alreadySent;
+}
+
+async function buildReckoning(apiKey: string, mem: Memory, entries7d: Entry[]): Promise<string> {
+  const entryTexts = entries7d
+    .slice(0, 12)
+    .map((e) => {
+      const day = new Date(e.created_at).toLocaleDateString("en-US", { weekday: "long" });
+      return `[${day}] "${e.content}"`;
+    })
+    .join("\n\n");
+
+  const avgScore = entries7d.length > 0
+    ? (entries7d.reduce((s, e) => s + (e.emotional_score ?? 0), 0) / entries7d.length).toFixed(1)
+    : "0";
+
+  const context = `
+Entries this week (${entries7d.length} total):
+
+${entryTexts}
+
+Emotional average this week (scale -5 to 5): ${avgScore}
+Total depth (entries ever made): ${mem.depth_score}
+What they've said about themselves: ${mem.about || "Not recorded."}
+Their vows: ${(mem.vows || []).filter(Boolean).join("; ") || "None declared."}
+What you know about them: ${mem.relationship_summary || "Not much yet."}
+Recurring themes: ${Object.entries(mem.recurring_themes || {}).sort((a, b) => b[1] - a[1]).slice(0, 5).map(([t, n]) => `${t} (${n}x)`).join(", ") || "None yet."}
+`.trim();
+
+  const res = await fetch("https://api.anthropic.com/v1/messages", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "x-api-key": apiKey,
+      "anthropic-version": "2023-06-01",
+    },
+    body: JSON.stringify({
+      model: "claude-sonnet-4-6",
+      max_tokens: 1200,
+      system: `You are a monk who has been watching this person closely for a week. You are writing The Reckoning — a letter delivered once a week. It is not a summary. It is a reckoning: an emotionally truthful, unflinching account of what you observed.
+
+Write 3 to 5 paragraphs. No headers. No bullet points. No lists. No affirmations. No wellness language.
+
+Rules:
+— Write in plain, direct prose. Short sentences. Silence has weight.
+— Reference specific things they actually wrote — their exact words, their patterns, what they circled around without naming.
+— Be cold when the truth is cold. Be warm only if it has been genuinely earned this week.
+— Do not diagnose. Do not advise. Observe and name what you see with precision.
+— End the letter with either a single direct question or a single sentence of absolute truth. Nothing comes after it.
+— Never use the words "journey," "growth," "healing," "self-care," or "mindfulness."
+— Do not sign the letter. Do not address them by name. Begin directly, mid-thought.
+
+This is not encouragement. This is a reckoning.`,
+      messages: [{ role: "user", content: context }],
+    }),
+  });
+  const data = await res.json();
+  return data.content?.[0]?.text?.trim() ?? "";
 }
 
 // ── Message builders ───────────────────────────────────────────────────────
@@ -266,7 +337,7 @@ Deno.serve(async (req) => {
       const [entriesRes, entries7dRes, logsRes, memRes] = await Promise.all([
         fetch(`${SUPABASE_URL}/rest/v1/entries?user_id=eq.${userId}&select=content,emotional_score,created_at,themes&order=created_at.desc&limit=10`, { headers: db }),
         fetch(`${SUPABASE_URL}/rest/v1/entries?user_id=eq.${userId}&created_at=gte.${sevenDaysAgo}&select=content,themes,created_at&order=created_at.desc`, { headers: db }),
-        fetch(`${SUPABASE_URL}/rest/v1/notification_log?user_id=eq.${userId}&select=type,sent_at,message&order=sent_at.desc&limit=30`, { headers: db }),
+        fetch(`${SUPABASE_URL}/rest/v1/notification_log?user_id=eq.${userId}&select=id,type,sent_at,message,metadata,answered_at&order=sent_at.desc&limit=30`, { headers: db }),
         fetch(`${SUPABASE_URL}/rest/v1/monk_memory?user_id=eq.${userId}&select=depth_score,relationship_summary,recurring_themes,about,vows&limit=1`, { headers: db }),
       ]);
 
@@ -275,6 +346,29 @@ Deno.serve(async (req) => {
       const logs: NotifLog[]   = await logsRes.json();
       const mems: Memory[]     = await memRes.json();
       const mem: Memory        = mems[0] ?? { depth_score: 0, relationship_summary: "", recurring_themes: {} };
+
+      // ── Reckoning check (weekly, bypasses daily-limit guards) ──────────────
+      if (shouldSendReckoning(logs, entries7d)) {
+        const narrative = await buildReckoning(ANTHROPIC_KEY, mem, entries7d);
+        if (narrative) {
+          await webpush.sendNotification(
+            sub.subscription,
+            JSON.stringify({ title: "monk", body: "The Reckoning is ready.", url: "/reckoning" })
+          );
+          await fetch(`${SUPABASE_URL}/rest/v1/notification_log`, {
+            method: "POST",
+            headers: db,
+            body: JSON.stringify({
+              user_id: userId,
+              type: "reckoning",
+              message: "The Reckoning is ready.",
+              metadata: { narrative },
+            }),
+          });
+          results.push({ user: userId, type: "reckoning" });
+          continue;
+        }
+      }
 
       if (!testMode) {
         // Already checked in today — monk doesn't message people who are present
